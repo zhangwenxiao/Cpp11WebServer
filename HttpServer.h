@@ -10,6 +10,7 @@ public:
     ~HttpServer();
     void run(); // 启动HTTP服务器
     void acceptConnection(); // 接受新连接
+    void closeConnection(HttpRequest* request); // 关闭连接
 private:
     using HttpRequestPtr = shared_ptr<HttpRequest>;
 

@@ -23,6 +23,9 @@ void HttpServer::run()
     // 注册新连接回调函数
     epoll_.setOnConnection(std::bind(&HttpServer::acceptConnection, this));
 
+    // 注册关闭连接回调函数
+    epoll_.setOnCloseConnection(std::bind(&HttpServer::closeConnection, this));
+
     // 事件循环
     while(1) { // FIXME 服务器应该能够停止
         int eventsNum = epoll_.wait(TIMEOUTMS);
@@ -51,11 +54,35 @@ void HttpServer::acceptConnection()
     }
 
     // 用shared_ptr管理连接套接字
-    HttpRequestPtr conn(new HttpRequest(acceptFd));
+    HttpRequestPtr conn(new HttpRequest(acceptFd, requests_.size()));
     requests_.push_back(conn);
     
     // 注册连接套接字到epoll
     // 可读，边缘触发，保证任一时刻只被一个线程处理
     epoll_.add(acceptFd, conn.get(), (EPOLLIN | EPOLLET | EPOLLONESHOT)); 
+}
+
+void HttpServer::closeConnection(HttpRequest* request)
+{
+    int fd = request -> fd();
+    int idx = request -> idx();
+
+    // 确保从requests_中删除正确的元素
+    assert(requests_[idx] -> fd() == fd);
+
+    // 关闭套接字
+    ::close(fd); // FIXME fd的生存期由HttpRequest控制
+
+    // request在request_的末尾，直接pop_back
+    if(idx == requests_.size() - 1)
+        requests_.pop_back();
+    // request不在request_的末尾，则与末尾交换后pop_back
+    else {
+        // 把要删除的request和requests_的末尾交换，再pop_back
+        std::swap(requests_[idx], requests_[requests_.size() - 1]);
+        requests_.pop_back();
+        // 原来的末尾元素被交换到前面，需要修改其下标
+        requests_[idx] -> setIdx(idx);
+    }
 }
 

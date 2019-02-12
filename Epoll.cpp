@@ -64,13 +64,15 @@ void handleEvent(int listenFd, int eventsNum)
         int fd = request -> fd();
 
         if(fd == listenFd) {
-            onConnection_(); // 新连接回调函数
+            // 新连接回调函数
+            onConnection_();
         } else {
             // 排除错误事件
             if((events[i].events & EPOLLERR) ||
                (events[i].events & EPOLLHUP) ||
                (!events[i].events & EPOLLIN)) {
-                ::close(fd); // FIXME 释放fd对应的HttpRequest资源
+                // 出错则关闭连接
+                onCloseConnection_();
                 continue;
             }
             request -> doRequest(); // TODO 把任务交给线程池去做

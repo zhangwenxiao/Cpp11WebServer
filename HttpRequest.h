@@ -1,18 +1,21 @@
 #ifndef __HTTP_REQUEST_H__
 #define __HTTP_REQUEST_H__
 
-#define MAX_BUF 8124
-
 namespace swings {
 class HttpRequest {
 public:
-    HttpRequest(int fd);
+    HttpRequest(int fd, int idx, Epoll* epoll);
     ~HttpRequest();
-    doRequest(); // TODO 处理HTTP请求报文
-    int fd(); // 返回文件描述符
+    void doRequest(); // 处理HTTP请求报文
+    int fd() { return fd_; } // 返回文件描述符
+    int idx() { return idx_; } // 返回下标
+    void setIdx(int idx) { idx_ = idx; } // 设置新下标
+
 private:
     int fd_; // 文件描述符
-    char buff_[MAX_BUF]; // FIXME 实现Buffer类
+    int idx_; // 当前HttpRequest在HttpServer::requests_中的下标
+    Buffer buff_; // 缓冲区
+    Epoll* epoll_; // epoll
 }; // class HttpRequest
 } // namespace swings
 
