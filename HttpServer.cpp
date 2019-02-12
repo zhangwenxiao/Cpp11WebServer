@@ -62,16 +62,10 @@ void HttpServer::acceptConnection()
     epoll_.add(acceptFd, conn.get(), (EPOLLIN | EPOLLET | EPOLLONESHOT)); 
 }
 
-void HttpServer::closeConnection(HttpRequest* request)
+void HttpServer::closeConnection(int idx)
 {
-    int fd = request -> fd();
-    int idx = request -> idx();
-
-    // 确保从requests_中删除正确的元素
-    assert(requests_[idx] -> fd() == fd);
-
-    // 关闭套接字
-    ::close(fd); // FIXME fd的生存期由HttpRequest控制
+    // TODO 是否需要epoll_.del
+    assert(idx >= 0 && idx < requests_.size());
 
     // request在request_的末尾，直接pop_back
     if(idx == requests_.size() - 1)
@@ -83,6 +77,76 @@ void HttpServer::closeConnection(HttpRequest* request)
         requests_.pop_back();
         // 原来的末尾元素被交换到前面，需要修改其下标
         requests_[idx] -> setIdx(idx);
+    }
+}
+
+// FIXME 这个函数在线程池运行，需要考虑线程安全问题
+void HttpServer::doRequest(int idx)
+{
+    assert(idx >= 0 && idx < requests_.size());
+
+    {
+        std::lock_guard<std::mutex> lock(lock_);
+        HttpRequestPtr request = requests_[idx]; // 多线程访问requests_需要加锁
+    }
+    int fd = request -> fd();
+    int nRead, readErrno;
+
+    while(1) {
+        nRead = request -> read(&readErrno);
+
+        // 已读到文件尾或无可读数据，断开连接
+        if(nRead == 0) {
+            {
+                std::lock_guard<std::mutex> lock(lock_);
+                closeConnection(idx); // 断开连接
+            }
+            return; // 释放线程使用权
+        }
+
+        // 非EAGAIN错误，断开连接
+        if(nRead < 0 && (readErrno != EAGAIN)) {
+            {
+                std::lock_guard<std::mutex> lock(lock_);
+                closeConnection(idx); // 断开连接
+            }
+            return; // 释放线程使用权
+        }
+
+        // EAGAIN错误则修改描述符状态并释放线程使用权
+        if(nRead < 0 && readErrno == EAGAIN)
+            break;
+
+        // 解析报文，出错则断开连接
+        if(!request -> parseRequest()) {
+            {
+                std::lock_guard<std::mutex> lock(lock_);
+                closeConnection(idx); // 断开连接
+            }
+            return; // 释放线程使用权
+        }
+
+        // 解析完成
+        if(request -> parseFinish()) {
+            // TODO 生成响应报文，并发送给客户端
+            
+            if(request -> getHeader("Connection") == "Keep-Alive") { // 长连接
+                // 重置报文解析相关状态
+                request -> resetParse();
+            } else { // 短连接
+                {
+                    std::lock_guard<std::mutex> lock(lock_);
+                    closeConnection(idx); // 断开连接
+                }
+                return; // 释放线程使用权
+            }
+        }
+    }
+
+    // 需要修改已注册描述符（因为使用了EPOLLONESHOT）
+    {
+        std::lock_guard<std::mutex> lock(lock_);
+        epoll_.mod(fd, request.get(), (EPOLLIN | EPOLLET | EPOLLONESHOT));
     }
 }
 

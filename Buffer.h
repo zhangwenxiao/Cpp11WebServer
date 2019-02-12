@@ -36,7 +36,7 @@ public:
         readerIndex_ += len;
     }
 
-    void retrieveUtil(const char* end) // 取出数据直到end
+    void retrieveUntil(const char* end) // 取出数据直到end
     {
         assert(peek() <= end);
         assert(end <= beginWrite());
@@ -86,6 +86,22 @@ public:
     { writerIndex_ += len; }
 
     ssize_t readFd(int fd, int* savedErrno); // 从套接字读到缓冲区
+
+    const char* findCRLF() const
+    {
+        const char CRLF[] = "\r\n";
+        const char* crlf = std::search(peek(), beginWrite(), CRLF, CRLF+2);
+        return crlf == beginWrite() ? nullptr : crlf;
+    }
+
+    const char* findCRLF(const char* start) const
+    {
+        assert(peek() <= start);
+        assert(start <= beginWrite());
+        const char CRLF[] = "\r\n";
+        const char* crlf = std::search(start, beginWrite(), CRLF, CRLF + 2);
+        return crlf == beginWrite() ? nullptr : crlf;
+    }
 
 private:
     char* __begin() // 返回缓冲区头指针

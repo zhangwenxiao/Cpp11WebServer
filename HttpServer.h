@@ -10,15 +10,17 @@ public:
     ~HttpServer();
     void run(); // 启动HTTP服务器
     void acceptConnection(); // 接受新连接
-    void closeConnection(HttpRequest* request); // 关闭连接
+    void closeConnection(int idx); // 关闭连接
+    void doRequest(int idx); // 处理HTTP请求报文
 private:
     using HttpRequestPtr = shared_ptr<HttpRequest>;
 
     int port_; // 监听端口
     int listenFd_; // 监听套接字
     Epoll epoll_; // epoll实例
-    ThreadPool threadPool_; // TODO 线程池
+    // ThreadPool threadPool_; // TODO 线程池
     vector<HttpRequestPtr> requests_; // http请求
+    std::mutex lock_; // 线程锁
 }; // class HttpServer
 } // namespace swings
 
