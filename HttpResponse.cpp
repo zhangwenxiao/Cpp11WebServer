@@ -4,21 +4,25 @@ using namespace swings;
 
 void HttpResponse::sendResponse(int fd)
 {
+    if(statusCode_ == 400) {
+        doErrorResponse(fd, "Swings can't parse the message");
+        return;
+    }
+
     struct stat sbuf;
     // 文件找不到错误
     if(::stat(path_.data(), sbuf) < 0) {
         statusCode_ = 404;
-        // 处理错误请求
-        doErrorResponse(fd, 404, "Swings can't find the file");
+        doErrorResponse(fd, "Swings can't find the file");
         return;
     }
     // 权限错误
-    if(!(S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode)) {
+    if(!(S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode))) {
         statusCode_ = 403;
-        // 处理错误请求
-        doErrorResponse(fd, 403, "Swings can't read the file");
+        doErrorResponse(fd, "Swings can't read the file");
         return;
     }
+
     // 处理静态文件请求
     doStaticRequest(fd, subf.st_size);
 }

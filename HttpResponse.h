@@ -44,7 +44,7 @@ public:
 
     ~HttpResponse() {}
 
-    void sendResponse();
+    void sendResponse(int fd);
 
 private:
     std::map<string, string> headers_; // 响应报文头部

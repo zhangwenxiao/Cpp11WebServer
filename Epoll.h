@@ -4,6 +4,9 @@
 #define MAXEVENTS 1024
 
 namespace swings {
+
+class HttpRequst;
+
 class Epoll {
 public:
     Epoll();
@@ -15,17 +18,21 @@ public:
     void handleEvent(int listenFd, int eventsNum); // 调用事件处理函数
     void setOnConnection(NewConnectionCallback& cb) { onConnection_ = cb; } // 设置新连接回调函数
     void setOnCloseConnection(CloseConnectionCallback& cb) { onConnection_ = cb; } // 设置关闭连接回调函数
+    void setOnRequest(HandleRequestCallback& cb) { onRequest_ = cb; } // 设置处理请求回调函数
 
 private: 
     using EventList = std::vector<struct epoll_event>;
     using NewConnectionCallback = std::function<void()>;
     using CloseConnectionCallback = std::function<void(HttpRequest*)>;
+    using HandleRequestCallback = std::function<void(HttpRequest*)>;
     
     int epollFd_;
     EventList events_;
     NewConnectionCallback onConnection_;
     CloseConnectionCallback onCloseConnection_;
+    HandleRequestCallback onRequest_;
 }; // class Epoll
+
 } // namespace swings
 
 #endif
