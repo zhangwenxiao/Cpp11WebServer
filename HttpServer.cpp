@@ -83,10 +83,9 @@ void HttpServer::closeConnection(int idx)
 // FIXME 这个函数在线程池运行，需要考虑线程安全问题
 void HttpServer::doRequest(int idx)
 {
-    assert(idx >= 0 && idx < requests_.size());
-
     {
         std::lock_guard<std::mutex> lock(lock_);
+        assert(idx >= 0 && idx < requests_.size());
         HttpRequestPtr request = requests_[idx]; // 多线程访问requests_需要加锁
     }
     int fd = request -> fd();
@@ -128,7 +127,9 @@ void HttpServer::doRequest(int idx)
 
         // 解析完成
         if(request -> parseFinish()) {
-            // TODO 生成响应报文，并发送给客户端
+            // FIXME 判断长连接的方法应封装到HttpRequest内
+            HttpResponse response(200, request -> getPath(), request -> getHeader("Connection") == "Keep-Alive");
+            response -> sendResponse();
             
             if(request -> getHeader("Connection") == "Keep-Alive") { // 长连接
                 // 重置报文解析相关状态

@@ -11,7 +11,7 @@ public:
     void run(); // 启动HTTP服务器
     void acceptConnection(); // 接受新连接
     void closeConnection(int idx); // 关闭连接
-    void doRequest(int idx); // 处理HTTP请求报文
+    void doRequest(int idx); // 处理HTTP请求报文，这个函数由线程池调用
 private:
     using HttpRequestPtr = shared_ptr<HttpRequest>;
 

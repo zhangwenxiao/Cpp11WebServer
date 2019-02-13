@@ -25,3 +25,27 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     return n;
 }
 
+// XXX 这样写是否有问题
+// TODO 考虑一次写不完就注册可写事件到epoll
+ssize_t Buffer::writeFd(int fd, int* savedErrno)
+{
+    const ssize_t toSend = readableBytes();
+    ssize_t nLeft = readableBytes();
+    ssize_t nWritten = 0;
+    char* bufPtr = __begin() + readerIndex_;
+
+    while(nLeft > 0) {
+        if((nWritten = ::write(fd, bufPtr, nLeft) <= 0) {
+            *savedErrno = errno;
+            if(errno == EINTR)
+                nWritten = 0;
+            else
+                return -1;
+        }
+        nLeft -= nWritten;
+        bufPtr += nWritten;
+    }
+
+    return toSend;
+}
+
