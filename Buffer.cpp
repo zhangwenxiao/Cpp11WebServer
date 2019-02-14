@@ -1,5 +1,7 @@
 #include "Buffer.h"
 
+#include <cstring> // perror
+
 #include <unistd.h> // write
 #include <sys/uio.h> // readv
 
@@ -16,8 +18,10 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     vec[1].iov_base = extrabuf;
     vec[1].iov_len = sizeof(extrabuf);
     const ssize_t n = readv(fd, vec, 2);
-    if(n < 0)
+    if(n < 0) {
+        std::perror("[Buffer::readFd] readv");
         *savedErrno = errno;
+    } 
     else if(static_cast<size_t>(n) <= writable)
         writerIndex_ += n;
     else {
@@ -36,8 +40,9 @@ ssize_t Buffer::writeFd(int fd, int* savedErrno)
     char* bufPtr = __begin() + readerIndex_;
 
     while(nLeft > 0) {
-        if((nWritten = ::write(fd, bufPtr, nLeft) <= 0)) {
+        if((nWritten = ::write(fd, bufPtr, nLeft)) <= 0) {
             *savedErrno = errno;
+            std::perror("[Buffer::writeFd] write");
             if(errno == EINTR)
                 nWritten = 0;
             else

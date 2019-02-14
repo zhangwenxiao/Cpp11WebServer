@@ -61,32 +61,35 @@ void HttpServer::run()
 
 void HttpServer::__acceptConnection()
 {
-    std::cout << "[HttpServer::__acceptConnection] new connection is comming" << std::endl;
-    // 接受新连接 
-    struct sockaddr_in clientAddr;
-    ::bzero((char*)&clientAddr, sizeof(clientAddr));
-    socklen_t clientAddrLen = 0;
-    // XXX 若不关心客户端标识，可以::accept(listenFd_, nullptr, nullptr)
-    int acceptFd = ::accept(listenFd_, (struct sockaddr*)&clientAddr, &clientAddrLen);
+    // ET模式下需要一直accept直到EAGAIN
+    while(1) {
+        int acceptFd = ::accept(listenFd_, nullptr, nullptr);
 
-    // accept系统调用出错
-    if(acceptFd == -1) {
-        ::perror("[HttpServer::__acceptConnection] accept");
-        return;
-    }
+        // accept系统调用出错
+        if(acceptFd == -1) {
+            if(errno == EAGAIN) {
+                std::cout << "[HttpServer::__acceptConnection] there is not more new connection" << std::endl;
+                break;
+            }
+            ::perror("[HttpServer::__acceptConnection] accept");
+            break;
+        }
 
-    // 设置为非阻塞
-    if(utils::setNonBlocking(acceptFd) == -1) {
-        // 出错则关闭
-        // 此时acceptFd还没有HttpRequst资源，不需要释放
-        ::close(acceptFd); 
-        return;
-    }
+        std::cout << "[HttpServer::__acceptConnection] new connection is comming" << std::endl;
 
-    // 为新的连接套接字分配HttpRequest资源
-    HttpRequest* request = new HttpRequest(acceptFd);
-    // 注册连接套接字到epoll（可读，边缘触发，保证任一时刻只被一个线程处理）
-    epoll_ -> add(acceptFd, request, (EPOLLIN | EPOLLET | EPOLLONESHOT)); 
+        // 设置为非阻塞
+        if(utils::setNonBlocking(acceptFd) == -1) {
+            // 出错则关闭
+            // 此时acceptFd还没有HttpRequst资源，不需要释放
+            ::close(acceptFd); 
+            return;
+        }
+
+        // 为新的连接套接字分配HttpRequest资源
+        HttpRequest* request = new HttpRequest(acceptFd);
+        // 注册连接套接字到epoll（可读，边缘触发，保证任一时刻只被一个线程处理）
+        epoll_ -> add(acceptFd, request, (EPOLLIN | EPOLLET | EPOLLONESHOT));
+    } 
 }
 
 void HttpServer::__closeConnection(HttpRequest* request)

@@ -3,7 +3,7 @@
 
 #include <memory> // unique_ptr
 
-#define TIMEOUTMS 5000 // epoll_wait超时时间，-1表示不设超时
+#define TIMEOUTMS -1 // epoll_wait超时时间，-1表示不设超时
 
 namespace swings {
 
