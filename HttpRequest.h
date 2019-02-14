@@ -6,6 +6,8 @@
 #include <string>
 #include <map>
 
+#define STATIC_ROOT "./www"
+
 namespace swings {
 class HttpRequest {
 public:
@@ -46,7 +48,11 @@ private:
     bool __setMethod(const char* begin, const char* end);
     // 设置URL路径
     void __setPath(const char* begin, const char* end)
-    { path_.assign(begin, end); }
+    { 
+        std::string subPath;
+        subPath.assign(begin, end);
+        path_ = STATIC_ROOT + subPath;
+    }
     // 设置URL参数
     void __setQuery(const char* begin, const char* end)
     { query_.assign(begin, end); }

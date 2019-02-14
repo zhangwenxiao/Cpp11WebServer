@@ -7,10 +7,10 @@ objects := ${sources:.cpp=.o}
 
 CC := g++ -std=c++11
 RM := rm -rf
-Lib :=
+LIB :=
 
 ${EXE}: ${objects}
-	${CC} -o $@ $^ ${Lib}
+	${CC} -o $@ $^ ${LIB}
 
 ${objects}: %.o: %.cpp ${headfile}
 	${CC} -o $@ -c $<
