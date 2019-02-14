@@ -1,17 +1,23 @@
 #include "HttpServer.h"
+#include "HttpRequest.h"
+#include "HttpResponse.h"
+#include "Utils.h"
+#include "Epoll.h"
 
 #include <iostream>
+#include <functional> // bind
 #include <cassert> // assert
 #include <cstring> // bzero
  
 #include <unistd.h> // close, read
 #include <sys/socket.h> // accept
+#include <arpa/inet.h> // sockaddr_in
 
 using namespace swings;
 
 HttpServer::HttpServer(int port) 
     : port_(port),
-      listenFd_(createListenFd(port_)),
+      listenFd_(utils::createListenFd(port_)),
       listenRequest_(new HttpRequest(listenFd_)),
       epoll_(new Epoll())
 {
@@ -34,10 +40,10 @@ void HttpServer::run()
     epoll_ -> setOnConnection(std::bind(&HttpServer::__acceptConnection, this));
 
     // 注册关闭连接回调函数
-    epoll_ -> setOnCloseConnection(std::bind(&HttpServer::__closeConnection, this));
+    epoll_ -> setOnCloseConnection(std::bind(&HttpServer::__closeConnection, this, std::placeholders::_1));
 
     // 注册请求处理回调函数
-    epoll_ -> setOnRequest(std::bind(&HttpServer::__doRequest, this));
+    epoll_ -> setOnRequest(std::bind(&HttpServer::__doRequest, this, std::placeholders::_1));
 
     std::cout << "[HttpServer::run] server is running ..." << std::endl;
     // 服务器循环
@@ -46,8 +52,10 @@ void HttpServer::run()
         // 等待事件发生
         int eventsNum = epoll_ -> wait(TIMEOUTMS);
 
-        // 分发事件处理函数
-        epoll_ -> handleEvent(listenFd_, eventsNum);
+        if(eventsNum > 0) {
+            // 分发事件处理函数
+            epoll_ -> handleEvent(listenFd_, eventsNum);
+        }   
     }
 }
 
@@ -68,7 +76,7 @@ void HttpServer::__acceptConnection()
     }
 
     // 设置为非阻塞
-    if(setNonBlocking(acceptFd) == -1) {
+    if(utils::setNonBlocking(acceptFd) == -1) {
         // 出错则关闭
         // 此时acceptFd还没有HttpRequst资源，不需要释放
         ::close(acceptFd); 
@@ -78,7 +86,7 @@ void HttpServer::__acceptConnection()
     // 为新的连接套接字分配HttpRequest资源
     HttpRequest* request = new HttpRequest(acceptFd);
     // 注册连接套接字到epoll（可读，边缘触发，保证任一时刻只被一个线程处理）
-    epoll_.add(acceptFd, request, (EPOLLIN | EPOLLET | EPOLLONESHOT)); 
+    epoll_ -> add(acceptFd, request, (EPOLLIN | EPOLLET | EPOLLONESHOT)); 
 }
 
 void HttpServer::__closeConnection(HttpRequest* request)
@@ -130,7 +138,7 @@ void HttpServer::__doRequest(HttpRequest* request)
                       << fd << "), send 400 to it" << std::endl;
             // 发送400报文
             HttpResponse response(400, "", false);
-            response.sendResponse();
+            response.sendResponse(fd);
 
             __closeConnection(request); 
             return; 
@@ -141,7 +149,7 @@ void HttpServer::__doRequest(HttpRequest* request)
             std::cout << "[HttpServer::__doRequest] parsing is finish in socket(fd=" 
                       << fd << "), send response to it" << std::endl;
             HttpResponse response(200, request -> getPath(), request -> keepAlive());
-            response -> sendResponse();
+            response.sendResponse(fd);
             
             if(request -> keepAlive()) { // 长连接
                 std::cout << "[HttpServer::__doRequest] socket(fd=" 

@@ -1,14 +1,23 @@
 #ifndef __EPOLL_H__
 #define __EPOLL_H__
 
+#include <functional> // function
+#include <vector> // vector
+
+#include <sys/epoll.h> // epoll_event
+
 #define MAXEVENTS 1024
 
 namespace swings {
 
-class HttpRequst;
+class HttpRequest;
 
 class Epoll {
 public:
+    using NewConnectionCallback = std::function<void()>;
+    using CloseConnectionCallback = std::function<void(HttpRequest*)>;
+    using HandleRequestCallback = std::function<void(HttpRequest*)>;
+
     Epoll();
     ~Epoll();
     int add(int fd, HttpRequest* request, int events); // 注册新描述符
@@ -16,15 +25,12 @@ public:
     int del(int fd, HttpRequest* request, int events); // 从epoll中删除描述符
     int wait(int timeoutMs); // 等待事件发生, 返回活跃描述符数量
     void handleEvent(int listenFd, int eventsNum); // 调用事件处理函数
-    void setOnConnection(NewConnectionCallback& cb) { onConnection_ = cb; } // 设置新连接回调函数
-    void setOnCloseConnection(CloseConnectionCallback& cb) { onConnection_ = cb; } // 设置关闭连接回调函数
-    void setOnRequest(HandleRequestCallback& cb) { onRequest_ = cb; } // 设置处理请求回调函数
+    void setOnConnection(const NewConnectionCallback& cb) { onConnection_ = cb; } // 设置新连接回调函数
+    void setOnCloseConnection(const CloseConnectionCallback& cb) { onCloseConnection_ = cb; } // 设置关闭连接回调函数
+    void setOnRequest(const HandleRequestCallback& cb) { onRequest_ = cb; } // 设置处理请求回调函数
 
 private: 
     using EventList = std::vector<struct epoll_event>;
-    using NewConnectionCallback = std::function<void()>;
-    using CloseConnectionCallback = std::function<void(HttpRequest*)>;
-    using HandleRequestCallback = std::function<void(HttpRequest*)>;
     
     int epollFd_;
     EventList events_;

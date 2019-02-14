@@ -1,4 +1,15 @@
 #include "HttpResponse.h"
+#include "Buffer.h"
+
+#include <string>
+#include <iostream>
+#include <cassert>
+#include <cstring>
+
+#include <fcntl.h> // open
+#include <unistd.h> // close
+#include <sys/stat.h> // stat
+#include <sys/mman.h> // mmap, munmap
 
 using namespace swings;
 
@@ -11,7 +22,7 @@ void HttpResponse::sendResponse(int fd)
 
     struct stat sbuf;
     // 文件找不到错误
-    if(::stat(path_.data(), sbuf) < 0) {
+    if(::stat(path_.data(), &sbuf) < 0) {
         statusCode_ = 404;
         doErrorResponse(fd, "Swings can't find the file");
         return;
@@ -24,7 +35,7 @@ void HttpResponse::sendResponse(int fd)
     }
 
     // 处理静态文件请求
-    doStaticRequest(fd, subf.st_size);
+    doStaticRequest(fd, sbuf.st_size);
 }
 
 // TODO 还要填入哪些报文头部选项
@@ -33,86 +44,107 @@ void HttpResponse::doStaticRequest(int fd, long fileSize)
     assert(fileSize >= 0);
     // XXX 声明为栈上对象需要考虑生存期问题
     Buffer output;
-    char buf[32];
+
+    auto itr = statusCode2Message.find(statusCode_);
+    if(itr == statusCode2Message.end()) {
+        std::cout << "[HttpRequest::doStaticRequest] unknown status code: " 
+                  << statusCode_ << std::endl;
+        statusCode_ = 400;
+        doErrorResponse(fd, "Unknown status code");
+        return;
+    }
 
     // 响应行
-    snprintf(buf, sizeof(buf), "HTTP/1.1 %d %s\r\n", 
-             statusCode_, 
-             statusCode2Message[statusCode_].data());
-    output.append(buf, strlen(buf));
+    output.append("HTTP/1.1 " + std::to_string(statusCode_) + " " + itr -> second);
 
     // 报文头
     if(keepAlive_) {
         output.append("Connection: Keep-Alive\r\n");
         // TODO 添加头部Keep-Alive: timeout=?
     }
-    string fileType = ;
     output.append("Content-type: " + __getFileType() + "\r\n");
-    output.append("Content-length: " + to_string(fileSize) + "\r\n");
+    output.append("Content-length: " + std::to_string(fileSize) + "\r\n");
     // TODO 添加头部Last-Modified: ?
     output.append("Server: Swings\r\n");
     output.append("\r\n");
 
     // 报文体
-    int srcFd = open(path_, O_RDONLY, 0);
+    int srcFd = ::open(path_.data(), O_RDONLY, 0);
     // 存储映射IO
-    char* srcAddr = mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, srcFd, 0);
-    close(srcFd);
+    char* srcAddr = (char*)::mmap(NULL, fileSize, PROT_READ, MAP_PRIVATE, srcFd, 0);
+    ::close(srcFd);
 
     output.append(srcAddr, fileSize);
     // 发送响应报文到客户端
-    // TODO 这里一定要一次发送完毕，不然output的生存期结束了
-    output.writeFd(fd);
+    // XXX 这里一定要一次发送完毕，不然output的生存期结束了
+    int writeErrno;
+    size_t toWrite = output.readableBytes();
+    ssize_t ret = output.writeFd(fd, &writeErrno);
+    std::cout << "[HttpRequest::doStaticRequest] " 
+              << toWrite << " bytes to write, return " << ret << std::endl;
 
     munmap(srcAddr, fileSize);
 }
 
-string HttpResponse::__getFileType()
+std::string HttpResponse::__getFileType()
 {
     int idx = path_.find_last_of('.');
-    string suffix;
+    std::string suffix;
     // 找不到文件后缀，默认纯文本
-    if(idx == string::npos)
+    if(idx == std::string::npos) {
+        std::cout << "[HttpResponse::__getFileType] can't find suffix, set file type to text/plain" << std::endl;
         return "text/plain";
+    }
+        
     suffix = path_.substr(idx);
     auto itr = suffix2Type.find(suffix);
     // 未知文件后缀，默认纯文本
-    if(itr == suffix2Type.end())
+    if(itr == suffix2Type.end()) {
+        std::cout << "[HttpResponse::__getFileType] unknown suffix " << suffix 
+                  << ", set file type to text/plain" << std::endl;
         return "text/plain";
+    }
+        
     return itr -> second;
 }
 
 // TODO 还要填入哪些报文头部选项
-void HttpResponse::doErrorResponse(int fd, string message) 
+void HttpResponse::doErrorResponse(int fd, std::string message) 
 {
     // XXX 声明为栈上对象需要考虑生存期问题
     Buffer output;
-    char buf[32];
-    char body[8192];
+    std::string body;
 
-    sprintf(body, "<html><title>Swings Error</title>");
-    sprintf(body, "%s<body bgcolor=\"ffffff\">\n", body);
-    sprintf(body, "%s%d : %s\n", body, 
-             statusCode_, 
-             statusCode2Message[statusCode_].data());
-    sprintf(body, "%s<p>%s</p>", body, message.data());
-    sprintf(body, "%s<hr><em>Swings web server</em>\n</body></html>", body);
+    auto itr = statusCode2Message.find(statusCode_);
+    if(itr == statusCode2Message.end()) {
+        std::cout << "[HttpRequest::doErrorRequest] unknown status code: " 
+                  << statusCode_ << std::endl;
+        return;
+    }
+
+    body += "<html><title>Swings Error</title>";
+    body += "<body bgcolor=\"ffffff\">";
+    body += std::to_string(statusCode_) + " : " + itr -> second + "\n";
+    body += "<p>" + message + "</p>";
+    body += "<hr><em>Swings web server</em></body></html>";
 
     // 响应行
-    snprintf(buf, sizeof(buf), "HTTP/1.1 %d %s\r\n", 
-             statusCode_,
-             statusCode2Message[statusCode_].data());
-    output.append(buf, strlen(buf));
+    output.append("HTTP/1.1 " + std::to_string(statusCode_) + " " + itr -> second + "\r\n");
+
     // 报文头
     output.append("Server: Swings\r\n");
     output.append("Content-type: text/html\r\n");
     output.append("Connection: close\r\n");
-    output.append("Content-length: %d\r\n\r\n", (int)strlen(body));
+    output.append("Content-length: " + std::to_string(body.size()) + "\r\n\r\n");
     // 报文体
-    output.append(body, strlen(body));
+    output.append(body);
 
     // 发送响应报文到客户端
-    // TODO 这里一定要一次发送完毕，不然output的生存期结束了
-    output.writeFd(fd);
+    // XXX 这里一定要一次发送完毕，不然output的生存期结束了
+    int writeErrno;
+    size_t toWrite = output.readableBytes();
+    ssize_t ret = output.writeFd(fd, &writeErrno);
+    std::cout << "[HttpRequest::doErrorRequest] " 
+              << toWrite << " bytes to write, return " << ret << std::endl;
 }
 

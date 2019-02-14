@@ -3,7 +3,7 @@
 
 #include <memory> // unique_ptr
 
-#define TIMEOUTMS -1 // epoll_wait超时时间，-1表示不设超时
+#define TIMEOUTMS 5000 // epoll_wait超时时间，-1表示不设超时
 
 namespace swings {
 
@@ -19,12 +19,12 @@ public:
     
 private:
     void __acceptConnection(); // 接受新连接
-    void __closeConnection(int idx); // 关闭连接
-    void __doRequest(int idx); // 处理HTTP请求报文，这个函数由线程池调用
+    void __closeConnection(HttpRequest* request); // 关闭连接
+    void __doRequest(HttpRequest* request); // 处理HTTP请求报文，这个函数由线程池调用
 
 private:
-    using ListenRequestPtr = unique_ptr<HttpRequest>;
-    using EpollPtr = unique_ptr<Epoll>;
+    using ListenRequestPtr = std::unique_ptr<HttpRequest>;
+    using EpollPtr = std::unique_ptr<Epoll>;
 
     int port_; // 监听端口
     int listenFd_; // 监听套接字

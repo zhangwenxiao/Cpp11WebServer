@@ -1,9 +1,16 @@
 #ifndef __BUFFER_H__
 #define __BUFFER_H__
 
+#include <vector>
+#include <string>
+#include <algorithm> // copy
+
+#include <cassert>
+
 #define INIT_SIZE 1024
 
 namespace swings {
+
 class Buffer {
 public:
     Buffer()
@@ -66,7 +73,7 @@ public:
         hasWritten(len);
     }
 
-    void append(const void* data, sizeof len) // 插入数据
+    void append(const void* data, size_t len) // 插入数据
     { append(static_cast<const char*>(data), len); }
 
     void ensureWritableBytes(size_t len) // 确保缓冲区有足够空间
@@ -86,6 +93,7 @@ public:
     { writerIndex_ += len; }
 
     ssize_t readFd(int fd, int* savedErrno); // 从套接字读到缓冲区
+    ssize_t writeFd(int fd, int* savedErrno);
 
     const char* findCRLF() const
     {
@@ -108,7 +116,7 @@ private:
     { return &*buffer_.begin(); }
 
     const char* __begin() const // 返回缓冲区头指针
-    { returh &*buffer_.begin(); }
+    { return &*buffer_.begin(); }
 
     void __makeSpace(size_t len) // 确保缓冲区有足够空间
     {
@@ -125,10 +133,13 @@ private:
         }
     }
 
+private:
+
     std::vector<char> buffer_;
     size_t readerIndex_;
     size_t writerIndex_;
 }; // class Buffer
+
 } // namespace swings
 
 #endif

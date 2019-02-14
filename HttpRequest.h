@@ -1,6 +1,11 @@
 #ifndef __HTTP_REQUEST_H__
 #define __HTTP_REQUEST_H__
 
+#include "Buffer.h"
+
+#include <string>
+#include <map>
+
 namespace swings {
 class HttpRequest {
 public:
@@ -19,19 +24,20 @@ public:
         Unknown, HTTP10, HTTP11
     };
 
-    HttpRequest(int fd, int idx, Epoll* epoll);
+    HttpRequest(int fd);
     ~HttpRequest();
 
     int fd() { return fd_; } // 返回文件描述符
-    int idx() { return idx_; } // 返回下标
-    void setIdx(int idx) { idx_ = idx; } // 设置新下标
+    int read(int* savedErrno); // 读数据
 
     bool parseRequest(); // 解析Http报文
     bool parseFinish() { return state_ == GotAll; } // 是否解析完一个报文
-    string getPath() const { return path_; }
-    string getQuery() const { return query_; }
-    string getHeader(const string& field) const;
-    string getMethod() const;
+    void resetParse(); // 重置解析状态
+    std::string getPath() const { return path_; }
+    std::string getQuery() const { return query_; }
+    std::string getHeader(const std::string& field) const;
+    std::string getMethod() const;
+    bool keepAlive() const; // 是否长连接
 
 private:
     // 解析请求行
@@ -50,18 +56,18 @@ private:
     // 增加报文头
     void __addHeader(const char* start, const char* colon, const char* end);
 
+private:
     // 网络通信相关
     int fd_; // 文件描述符
-    int idx_; // 当前HttpRequest在HttpServer::requests_中的下标
     Buffer buff_; // 缓冲区
 
     // 报文解析相关
     HttpRequestParseState state_; // 报文解析状态
     Method method_; // HTTP方法
     Version version_; // HTTP版本
-    string path_; // URL路径
-    string query_; // URL参数
-    std::map<string, string> headers_; // 报文头部
+    std::string path_; // URL路径
+    std::string query_; // URL参数
+    std::map<std::string, std::string> headers_; // 报文头部
 }; // class HttpRequest
 } // namespace swings
 
