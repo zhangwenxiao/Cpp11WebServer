@@ -31,6 +31,10 @@ public:
 
     int fd() { return fd_; } // 返回文件描述符
     int read(int* savedErrno); // 读数据
+    int write(int* savedErrno); // 写数据
+
+    void appendOutBuffer(const Buffer& buf) { outBuff_.append(buf); }
+    int writableBytes() { return outBuff_.readableBytes(); }
 
     bool parseRequest(); // 解析Http报文
     bool parseFinish() { return state_ == GotAll; } // 是否解析完一个报文
@@ -51,6 +55,8 @@ private:
     { 
         std::string subPath;
         subPath.assign(begin, end);
+        if(subPath == "/")
+            subPath = "/index.html";
         path_ = STATIC_ROOT + subPath;
     }
     // 设置URL参数
@@ -65,7 +71,8 @@ private:
 private:
     // 网络通信相关
     int fd_; // 文件描述符
-    Buffer buff_; // 缓冲区
+    Buffer inBuff_; // 读缓冲区
+    Buffer outBuff_; // 写缓冲区
 
     // 报文解析相关
     HttpRequestParseState state_; // 报文解析状态

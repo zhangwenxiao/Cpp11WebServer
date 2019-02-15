@@ -17,6 +17,7 @@ public:
     using NewConnectionCallback = std::function<void()>;
     using CloseConnectionCallback = std::function<void(HttpRequest*)>;
     using HandleRequestCallback = std::function<void(HttpRequest*)>;
+    using HandleResponseCallback = std::function<void(HttpRequest*)>;
 
     Epoll();
     ~Epoll();
@@ -28,6 +29,7 @@ public:
     void setOnConnection(const NewConnectionCallback& cb) { onConnection_ = cb; } // 设置新连接回调函数
     void setOnCloseConnection(const CloseConnectionCallback& cb) { onCloseConnection_ = cb; } // 设置关闭连接回调函数
     void setOnRequest(const HandleRequestCallback& cb) { onRequest_ = cb; } // 设置处理请求回调函数
+    void setOnResponse(const HandleResponseCallback& cb) { onResponse_ = cb; } // 设置响应请求回调函数
 
 private: 
     using EventList = std::vector<struct epoll_event>;
@@ -37,6 +39,7 @@ private:
     NewConnectionCallback onConnection_;
     CloseConnectionCallback onCloseConnection_;
     HandleRequestCallback onRequest_;
+    HandleResponseCallback onResponse_;
 }; // class Epoll
 
 } // namespace swings

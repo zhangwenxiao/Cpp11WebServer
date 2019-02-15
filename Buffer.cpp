@@ -17,7 +17,7 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     vec[0].iov_len = writable;
     vec[1].iov_base = extrabuf;
     vec[1].iov_len = sizeof(extrabuf);
-    const ssize_t n = readv(fd, vec, 2);
+    const ssize_t n = ::readv(fd, vec, 2);
     if(n < 0) {
         std::perror("[Buffer::readFd] readv");
         *savedErrno = errno;
@@ -32,26 +32,46 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     return n;
 }
 
+// // 循环写版本
+// ssize_t Buffer::writeFd(int fd, int* savedErrno)
+// {
+//     const ssize_t toSend = readableBytes();
+//     ssize_t nLeft = readableBytes();
+//     ssize_t nWritten = 0;
+//     char* bufPtr = __begin() + readerIndex_;
+
+//     while(nLeft > 0) {
+//         if((nWritten = ::write(fd, bufPtr, nLeft)) <= 0) {
+//             *savedErrno = errno;
+//             std::perror("[Buffer::writeFd] write");
+//             if(errno == EINTR)
+//                 nWritten = 0;
+//             else
+//                 return -1;
+//         }
+//         nLeft -= nWritten;
+//         bufPtr += nWritten;
+//     }
+
+//     return toSend;
+// }
+
+// 非循环写版本
 ssize_t Buffer::writeFd(int fd, int* savedErrno)
 {
-    const ssize_t toSend = readableBytes();
-    ssize_t nLeft = readableBytes();
-    ssize_t nWritten = 0;
+    size_t nLeft = readableBytes();
     char* bufPtr = __begin() + readerIndex_;
-
-    while(nLeft > 0) {
-        if((nWritten = ::write(fd, bufPtr, nLeft)) <= 0) {
-            *savedErrno = errno;
+    ssize_t n;
+    if((n = ::write(fd, bufPtr, nLeft)) <= 0) {
+        if(n < 0 && n == EINTR)
+            return 0;
+        else {
             std::perror("[Buffer::writeFd] write");
-            if(errno == EINTR)
-                nWritten = 0;
-            else
-                return -1;
+            *savedErrno = errno;
+            return -1;
         }
-        nLeft -= nWritten;
-        bufPtr += nWritten;
+    } else {
+        readerIndex_ += n;
+        return n;
     }
-
-    return toSend;
 }
-

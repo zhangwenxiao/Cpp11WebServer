@@ -4,6 +4,7 @@
 #include <vector>
 #include <string>
 #include <algorithm> // copy
+#include <iostream>
 
 #include <cassert>
 
@@ -22,8 +23,8 @@ public:
         assert(writableBytes() == INIT_SIZE);
     }
     ~Buffer() {}
-    Buffer(const Buffer&) = delete; // 禁止拷贝
-    Buffer& operator=(const Buffer&) = delete; // 禁止拷贝
+
+    // 默认拷贝构造函数和赋值函数可用
 
     size_t readableBytes() const // 可读字节数
     { return writerIndex_ - readerIndex_; }
@@ -67,7 +68,8 @@ public:
     { append(str.data(), str.length()); }
 
     void append(const char* data, size_t len) // 插入数据
-    { 
+    {
+        // std::cout << "[Buffer::append] ready to append " << len << " bytes" << std::endl; 
         ensureWritableBytes(len);
         std::copy(data, data + len, beginWrite());
         hasWritten(len);
@@ -76,10 +78,16 @@ public:
     void append(const void* data, size_t len) // 插入数据
     { append(static_cast<const char*>(data), len); }
 
+    void append(const Buffer& otherBuff) // 把其它缓冲区的数据添加到本缓冲区
+    { append(otherBuff.peek(), otherBuff.readableBytes()); }
+
     void ensureWritableBytes(size_t len) // 确保缓冲区有足够空间
     {
-        if(writableBytes() < len)
+        if(writableBytes() < len) {
+            // std::cout << "[Buffer::append] writableBytes = " 
+            //           << writableBytes() << ", make space" << std::endl;
             __makeSpace(len);
+        }
         assert(writableBytes() >= len);
     }
 
@@ -93,7 +101,7 @@ public:
     { writerIndex_ += len; }
 
     ssize_t readFd(int fd, int* savedErrno); // 从套接字读到缓冲区
-    ssize_t writeFd(int fd, int* savedErrno);
+    ssize_t writeFd(int fd, int* savedErrno); // 缓冲区写到套接字
 
     const char* findCRLF() const
     {
@@ -120,8 +128,15 @@ private:
 
     void __makeSpace(size_t len) // 确保缓冲区有足够空间
     {
-        if(writableBytes() + prependableBytes() < len)
+        // std::cout << "[Buffer::__makeSpace] before makespace writableBytes=" << writableBytes() 
+        //           << ", prependableBytes=" << prependableBytes()
+        //           << ", readableBytes=" << readableBytes()
+        //           << ", writerIndex_=" << writerIndex_
+        //           << ", readerIndex_=" << readerIndex_ << std::endl;
+        if(writableBytes() + prependableBytes() < len) {
+            // std::cout << "[Buffer::__makeSpace] space is no enough, resize" << std::endl;
             buffer_.resize(writerIndex_ + len);
+        }
         else {
             size_t readable = readableBytes();
             std::copy(__begin() + readerIndex_,
@@ -129,7 +144,9 @@ private:
                       __begin());
             readerIndex_ = 0;
             writerIndex_ = readerIndex_ + readable;
-            assert(readable = readableBytes());
+            // std::cout << "[Buffer::__makeSpace] after move , writerIndex_=" << writerIndex_
+            //           << ", readerIndex_=" << readerIndex_ << std::endl;
+            assert(readable == readableBytes());
         }
     }
 

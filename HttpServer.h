@@ -21,6 +21,7 @@ private:
     void __acceptConnection(); // 接受新连接
     void __closeConnection(HttpRequest* request); // 关闭连接
     void __doRequest(HttpRequest* request); // 处理HTTP请求报文，这个函数由线程池调用
+    void __doResponse(HttpRequest* request);
 
 private:
     using ListenRequestPtr = std::unique_ptr<HttpRequest>;

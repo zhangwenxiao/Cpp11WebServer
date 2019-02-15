@@ -83,8 +83,14 @@ void Epoll::handleEvent(int listenFd, int eventsNum)
                 std::cout << "[Epoll::handleEvent] error happen in socket(fd=" 
                           << fd << "), close it" << std::endl;
                 continue;
+            } else if(events_[i].events & EPOLLIN) {
+                onRequest_(request); // TODO 把任务交给线程池去做
+            } else if(events_[i].events & EPOLLOUT) {
+                onResponse_(request); // TODO 把任务交给线程池去做
+            } else {
+                std::cout << "[Epoll::handleEvent] can't not handle the event" << std::endl;
             }
-            onRequest_(request); // TODO 把任务交给线程池去做
+
         }
     }
     return;

@@ -45,6 +45,9 @@ void HttpServer::run()
     // 注册请求处理回调函数
     epoll_ -> setOnRequest(std::bind(&HttpServer::__doRequest, this, std::placeholders::_1));
 
+    // 注册响应处理回调函数
+    epoll_ -> setOnResponse(std::bind(&HttpServer::__doResponse, this, std::placeholders::_1));
+
     std::cout << "[HttpServer::run] server is running ..." << std::endl;
     // 服务器循环
     // XXX 服务器应该能够停止
@@ -141,7 +144,11 @@ void HttpServer::__doRequest(HttpRequest* request)
                       << fd << "), send 400 to it" << std::endl;
             // 发送400报文
             HttpResponse response(400, "", false);
-            response.sendResponse(fd);
+            request -> appendOutBuffer(response.makeResponse());
+
+            // XXX 立刻关闭连接了，所以就算没写完也只能写一次？
+            int writeErrno;
+            request -> write(&writeErrno);
 
             __closeConnection(request); 
             return; 
@@ -152,7 +159,9 @@ void HttpServer::__doRequest(HttpRequest* request)
             std::cout << "[HttpServer::__doRequest] parsing is finish in socket(fd=" 
                       << fd << "), send response to it" << std::endl;
             HttpResponse response(200, request -> getPath(), request -> keepAlive());
-            response.sendResponse(fd);
+            std::cout << "[HttpServer::__doRequest] make response finish" << std::endl;
+            request -> appendOutBuffer(response.makeResponse());
+            __doResponse(request);
             
             if(request -> keepAlive()) { // 长连接
                 std::cout << "[HttpServer::__doRequest] socket(fd=" 
@@ -171,5 +180,43 @@ void HttpServer::__doRequest(HttpRequest* request)
     std::cout << "[HttpServer::__doRequest] modify socket(fd=" << fd << ") to epoll" << std::endl;
     // FIXME 多线程访问epoll_，应该加锁?
     // 需要修改已注册描述符（因为使用了EPOLLONESHOT）
-    epoll_ -> mod(fd, request, (EPOLLIN | EPOLLET | EPOLLONESHOT));
+    epoll_ -> mod(fd, request, (EPOLLIN | EPOLLOUT | EPOLLET | EPOLLONESHOT));
+}
+
+void HttpServer::__doResponse(HttpRequest* request)
+{
+    int fd = request -> fd();
+
+    int toWrite = request -> writableBytes();
+
+    int nWritten = 0;
+    while(1) {
+        if(toWrite == 0) {
+            std::cout << "[HttpServer::__doResponse] nothing to write in socket(fd=" << fd << ")" << std::endl;
+            epoll_ -> mod(fd, request, (EPOLLIN | EPOLLET | EPOLLONESHOT));
+            return;
+        }
+
+        int writeErrno;
+        int ret = request -> write(&writeErrno);
+
+        if(ret < 0 && writeErrno == EAGAIN) {
+            std::cout << "[HttpServer::__doResponse] EAGAIN happen in socket(fd=" << fd << ")" << std::endl;
+            break;
+        }
+
+        // 非EAGAIN错误，断开连接
+        if(ret < 0 && (writeErrno != EAGAIN)) {
+            std::cout << "[HttpServer::__doResponse] error in socket(fd=" << fd << "), close it" << std::endl;
+            __closeConnection(request);
+            return; 
+        }
+
+        nWritten += ret;
+        if(nWritten >= toWrite) // XXX 正常情况nWritten不会大于toWrite
+            return;
+    }
+
+    epoll_ -> mod(fd, request, (EPOLLIN | EPOLLOUT | EPOLLET | EPOLLONESHOT));
+    return;
 }

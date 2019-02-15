@@ -25,8 +25,15 @@ HttpRequest::~HttpRequest()
 
 int HttpRequest::read(int* savedErrno)
 {
-    int ret = buff_.readFd(fd_, savedErrno);
+    int ret = inBuff_.readFd(fd_, savedErrno);
     std::cout << "[HttpRequest::read] read from socket(fd=" << fd_ << "), return " << ret << std::endl;
+    return ret;
+}
+
+int HttpRequest::write(int* savedErrno)
+{
+    int ret = outBuff_.writeFd(fd_, savedErrno);
+    std::cout << "[HttpRequest::write] write to socket(fd=" << fd_ << "), return " << ret << std::endl;
     return ret;
 }
 
@@ -38,39 +45,39 @@ bool HttpRequest::parseRequest()
     while(hasMore) {
         if(state_ == ExpectRequestLine) {
             // 处理请求行
-            const char* crlf = buff_.findCRLF();
+            const char* crlf = inBuff_.findCRLF();
             if(crlf) {
-                std::cout << "[HttpRequest::parseRequest] find CRLF of request line" << std::endl;
-                ok = __parseRequestLine(buff_.peek(), crlf);
+                // std::cout << "[HttpRequest::parseRequest] find CRLF of request line" << std::endl;
+                ok = __parseRequestLine(inBuff_.peek(), crlf);
                 if(ok) {
-                    std::cout << "[HttpRequest::parseRequest] parsing request line finish" << std::endl;
-                    buff_.retrieveUntil(crlf + 2);
+                    // std::cout << "[HttpRequest::parseRequest] parsing request line finish" << std::endl;
+                    inBuff_.retrieveUntil(crlf + 2);
                     state_ = ExpectHeaders;
                 } else {
-                    std::cout << "[HttpRequest::parseRequest] parsing request line fail" << std::endl;
+                    // std::cout << "[HttpRequest::parseRequest] parsing request line fail" << std::endl;
                     hasMore = false;
                 }
             } else {
-                std::cout << "[HttpRequest::parseRequest] can't find CRLF of request line" << std::endl;
+                // std::cout << "[HttpRequest::parseRequest] can't find CRLF of request line" << std::endl;
                 hasMore = false;
             }
         } else if(state_ == ExpectHeaders) {
             // 处理报文头
-            const char* crlf = buff_.findCRLF();
+            const char* crlf = inBuff_.findCRLF();
             if(crlf) {
-                std::cout << "[HttpRequest::parseRequest] find CRLF of request header" << std::endl;
-                const char* colon = std::find(buff_.peek(), crlf, ':');
+                // std::cout << "[HttpRequest::parseRequest] find CRLF of request header" << std::endl;
+                const char* colon = std::find(inBuff_.peek(), crlf, ':');
                 if(colon != crlf) {
-                    std::cout << "[HttpRequest::parseRequest] find : of request header" << std::endl;
-                    __addHeader(buff_.peek(), colon, crlf);
+                    // std::cout << "[HttpRequest::parseRequest] find : of request header" << std::endl;
+                    __addHeader(inBuff_.peek(), colon, crlf);
                 } else {
-                    std::cout << "[HttpRequest::parseRequest] can't find colon of request header, header parsing finish" << std::endl;
+                    std::cout << "[HttpRequest::parseRequest]header parsing finish" << std::endl;
                     state_ = GotAll;
                     hasMore = false;
                 }
-                buff_.retrieveUntil(crlf + 2);
+                inBuff_.retrieveUntil(crlf + 2);
             } else {
-                std::cout << "[HttpRequest::parseRequest] can't find CRLF of request header" << std::endl;
+                // std::cout << "[HttpRequest::parseRequest] can't find CRLF of request header" << std::endl;
                 hasMore = false;
             } 
         } else if(state_ == ExpectBody) {
@@ -83,7 +90,7 @@ bool HttpRequest::parseRequest()
 
 bool HttpRequest::__parseRequestLine(const char* begin, const char* end)
 {
-    std::cout << "[HttpRequest::__parseRequestLine] begin to parse request line" << std::endl;
+    // std::cout << "[HttpRequest::__parseRequestLine] begin to parse request line" << std::endl;
     bool succeed = false;
     const char* start = begin;
     const char* space = std::find(start, end, ' ');

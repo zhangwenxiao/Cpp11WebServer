@@ -36,6 +36,8 @@ static const std::map<std::string, std::string> suffix2Type = {
     {".css", "text/css"},
 };
 
+class Buffer;
+
 class HttpResponse {
 public:
     HttpResponse(int statusCode, std::string path, bool keepAlive)
@@ -46,9 +48,9 @@ public:
 
     ~HttpResponse() {}
 
-    void sendResponse(int fd);
-    void doErrorResponse(int fd, std::string message);
-    void doStaticRequest(int fd, long fileSize);
+    Buffer makeResponse();
+    void doErrorResponse(Buffer& output, std::string message);
+    void doStaticRequest(Buffer& output, long fileSize);
 
 private:
     std::string __getFileType();
@@ -57,7 +59,6 @@ private:
     std::map<std::string, std::string> headers_; // 响应报文头部
     int statusCode_; // 响应状态码
     std::string path_; // 请求资源路径
-    std::string contentType_; // 请求资源类型
     bool keepAlive_; // 长连接
 }; // class HttpResponse
 } // namespace swings

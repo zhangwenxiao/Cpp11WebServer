@@ -13,50 +13,54 @@
 
 using namespace swings;
 
-void HttpResponse::sendResponse(int fd)
+Buffer HttpResponse::makeResponse()
 {
+    Buffer output;
+
     if(statusCode_ == 400) {
-        doErrorResponse(fd, "Swings can't parse the message");
-        return;
+        std::cout << "[HttpResponse::makeResponse] make 400 response" << std::endl;
+        doErrorResponse(output, "Swings can't parse the message");
+        return output;
     }
 
     struct stat sbuf;
     // 文件找不到错误
     if(::stat(path_.data(), &sbuf) < 0) {
+        std::cout << "[HttpResponse::makeResponse] make 404 response" << std::endl;
         statusCode_ = 404;
-        doErrorResponse(fd, "Swings can't find the file");
-        return;
+        doErrorResponse(output, "Swings can't find the file");
+        return output;
     }
     // 权限错误
     if(!(S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode))) {
+        std::cout << "[HttpResponse::makeResponse] make 403 response" << std::endl;
         statusCode_ = 403;
-        doErrorResponse(fd, "Swings can't read the file");
-        return;
+        doErrorResponse(output, "Swings can't read the file");
+        return output;
     }
 
     // 处理静态文件请求
-    doStaticRequest(fd, sbuf.st_size);
+    doStaticRequest(output, sbuf.st_size);
+    return output;
 }
 
 // TODO 还要填入哪些报文头部选项
-void HttpResponse::doStaticRequest(int fd, long fileSize)
+void HttpResponse::doStaticRequest(Buffer& output, long fileSize)
 {
     assert(fileSize >= 0);
-    // XXX 声明为栈上对象需要考虑生存期问题
-    Buffer output;
 
     auto itr = statusCode2Message.find(statusCode_);
     if(itr == statusCode2Message.end()) {
         std::cout << "[HttpRequest::doStaticRequest] unknown status code: " 
                   << statusCode_ << std::endl;
         statusCode_ = 400;
-        doErrorResponse(fd, "Unknown status code");
+        doErrorResponse(output, "Unknown status code");
         return;
     }
 
     // 响应行
     output.append("HTTP/1.1 " + std::to_string(statusCode_) + " " + itr -> second);
-
+    std::cout << "[HttpResponse::doStaticRequest] append response line finish" << std::endl;
     // 报文头
     if(keepAlive_) {
         output.append("Connection: Keep-Alive\r\n");
@@ -67,6 +71,7 @@ void HttpResponse::doStaticRequest(int fd, long fileSize)
     // TODO 添加头部Last-Modified: ?
     output.append("Server: Swings\r\n");
     output.append("\r\n");
+    std::cout << "[HttpResponse::doStaticRequest] append response head finish" << std::endl;
 
     // 报文体
     int srcFd = ::open(path_.data(), O_RDONLY, 0);
@@ -75,13 +80,7 @@ void HttpResponse::doStaticRequest(int fd, long fileSize)
     ::close(srcFd);
 
     output.append(srcAddr, fileSize);
-    // 发送响应报文到客户端
-    // XXX 这里一定要一次发送完毕，不然output的生存期结束了
-    int writeErrno;
-    size_t toWrite = output.readableBytes();
-    ssize_t ret = output.writeFd(fd, &writeErrno);
-    std::cout << "[HttpRequest::doStaticRequest] " 
-              << toWrite << " bytes to write, return " << ret << std::endl;
+    std::cout << "[HttpResponse::doStaticRequest] append response body finish" << std::endl;
 
     munmap(srcAddr, fileSize);
 }
@@ -104,15 +103,13 @@ std::string HttpResponse::__getFileType()
                   << ", set file type to text/plain" << std::endl;
         return "text/plain";
     }
-        
+    std::cout << "[HttpResponse::__getFileType] file type : " << itr -> second << std::endl;    
     return itr -> second;
 }
 
 // TODO 还要填入哪些报文头部选项
-void HttpResponse::doErrorResponse(int fd, std::string message) 
+void HttpResponse::doErrorResponse(Buffer& output, std::string message) 
 {
-    // XXX 声明为栈上对象需要考虑生存期问题
-    Buffer output;
     std::string body;
 
     auto itr = statusCode2Message.find(statusCode_);
@@ -130,21 +127,14 @@ void HttpResponse::doErrorResponse(int fd, std::string message)
 
     // 响应行
     output.append("HTTP/1.1 " + std::to_string(statusCode_) + " " + itr -> second + "\r\n");
-
+    std::cout << "[HttpResponse::doErrorResponse] append response line finish" << std::endl;
     // 报文头
     output.append("Server: Swings\r\n");
     output.append("Content-type: text/html\r\n");
     output.append("Connection: close\r\n");
     output.append("Content-length: " + std::to_string(body.size()) + "\r\n\r\n");
+    std::cout << "[HttpResponse::doErrorResponse] append response header finish" << std::endl;
     // 报文体
     output.append(body);
-
-    // 发送响应报文到客户端
-    // XXX 这里一定要一次发送完毕，不然output的生存期结束了
-    int writeErrno;
-    size_t toWrite = output.readableBytes();
-    ssize_t ret = output.writeFd(fd, &writeErrno);
-    std::cout << "[HttpRequest::doErrorRequest] " 
-              << toWrite << " bytes to write, return " << ret << std::endl;
+    std::cout << "[HttpResponse::doErrorResponse] append response body finish" << std::endl;
 }
-
