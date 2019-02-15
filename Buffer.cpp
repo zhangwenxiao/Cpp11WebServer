@@ -1,6 +1,7 @@
 #include "Buffer.h"
 
 #include <cstring> // perror
+#include <iostream>
 
 #include <unistd.h> // write
 #include <sys/uio.h> // readv
@@ -19,7 +20,9 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     vec[1].iov_len = sizeof(extrabuf);
     const ssize_t n = ::readv(fd, vec, 2);
     if(n < 0) {
-        std::perror("[Buffer::readFd] readv");
+        // 用perror会导致和cout打印出来的log乱序
+        // std::perror("[Buffer::readFd] readv");
+        std::cout << "[Buffer:readFd] readv " << strerror(errno) << std::endl;
         *savedErrno = errno;
     } 
     else if(static_cast<size_t>(n) <= writable)
@@ -32,31 +35,6 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     return n;
 }
 
-// // 循环写版本
-// ssize_t Buffer::writeFd(int fd, int* savedErrno)
-// {
-//     const ssize_t toSend = readableBytes();
-//     ssize_t nLeft = readableBytes();
-//     ssize_t nWritten = 0;
-//     char* bufPtr = __begin() + readerIndex_;
-
-//     while(nLeft > 0) {
-//         if((nWritten = ::write(fd, bufPtr, nLeft)) <= 0) {
-//             *savedErrno = errno;
-//             std::perror("[Buffer::writeFd] write");
-//             if(errno == EINTR)
-//                 nWritten = 0;
-//             else
-//                 return -1;
-//         }
-//         nLeft -= nWritten;
-//         bufPtr += nWritten;
-//     }
-
-//     return toSend;
-// }
-
-// 非循环写版本
 ssize_t Buffer::writeFd(int fd, int* savedErrno)
 {
     size_t nLeft = readableBytes();
@@ -66,7 +44,9 @@ ssize_t Buffer::writeFd(int fd, int* savedErrno)
         if(n < 0 && n == EINTR)
             return 0;
         else {
-            std::perror("[Buffer::writeFd] write");
+            // 用perror会导致和cout打印出来的log乱序
+            // std::perror("[Buffer::writeFd] write");
+            std::cout << "[Buffer:writeFd] write " << strerror(errno) << std::endl;
             *savedErrno = errno;
             return -1;
         }
