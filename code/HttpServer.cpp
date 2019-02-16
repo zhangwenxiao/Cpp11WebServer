@@ -3,6 +3,7 @@
 #include "HttpResponse.h"
 #include "Utils.h"
 #include "Epoll.h"
+#include "ThreadPool.h"
 
 #include <iostream>
 #include <functional> // bind
@@ -19,7 +20,8 @@ HttpServer::HttpServer(int port)
     : port_(port),
       listenFd_(utils::createListenFd(port_)),
       listenRequest_(new HttpRequest(listenFd_)),
-      epoll_(new Epoll())
+      epoll_(new Epoll()),
+      threadPool_(new ThreadPool(NUM_WORKERS))
 {
     assert(listenFd_ >= 0);
     std::cout << "[HttpServer::HttpServer] create listen socket, fd = " 
@@ -57,7 +59,7 @@ void HttpServer::run()
 
         if(eventsNum > 0) {
             // 分发事件处理函数
-            epoll_ -> handleEvent(listenFd_, eventsNum);
+            epoll_ -> handleEvent(listenFd_, threadPool_, eventsNum);
         }   
     }
 }

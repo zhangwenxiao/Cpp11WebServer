@@ -7,7 +7,7 @@ objects := ${sources:.cpp=.o}
 
 CC := g++ -std=c++11
 RM := rm -rf
-LIB :=
+LIB := -lpthread
 
 ${EXE}: ${objects}
 	${CC} -o $@ $^ ${LIB}

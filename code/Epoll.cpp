@@ -1,5 +1,6 @@
 #include "Epoll.h"
 #include "HttpRequest.h"
+#include "ThreadPool.h"
 
 #include <iostream>
 #include <cassert>
@@ -63,7 +64,7 @@ int Epoll::wait(int timeoutMs)
     return eventsNum;
 }
 
-void Epoll::handleEvent(int listenFd, int eventsNum)
+void Epoll::handleEvent(int listenFd, std::shared_ptr<ThreadPool>& threadPool, int eventsNum)
 {
     assert(eventsNum > 0);
     for(int i = 0; i < eventsNum; ++i) {
@@ -84,9 +85,12 @@ void Epoll::handleEvent(int listenFd, int eventsNum)
                           << fd << "), close it" << std::endl;
                 continue;
             } else if(events_[i].events & EPOLLIN) {
-                onRequest_(request); // TODO 把任务交给线程池去做
+                // onRequest_(request); // TODO 把任务交给线程池去做
+                threadPool -> pushJob(std::bind(onRequest_, request));
+
             } else if(events_[i].events & EPOLLOUT) {
-                onResponse_(request); // TODO 把任务交给线程池去做
+                // onResponse_(request); // TODO 把任务交给线程池去做
+                threadPool -> pushJob(std::bind(onResponse_, request));
             } else {
                 std::cout << "[Epoll::handleEvent] can't not handle the event" << std::endl;
             }

@@ -4,12 +4,14 @@
 #include <memory> // unique_ptr
 
 #define TIMEOUTMS -1 // epoll_wait超时时间，-1表示不设超时
+#define NUM_WORKERS 4 // 线程池大小
 
 namespace swings {
 
 // 前置声明，不需要包含HttpRequest.h和Epoll.h
 class HttpRequest;
 class Epoll;
+class ThreadPool;
 
 class HttpServer {
 public:
@@ -26,12 +28,13 @@ private:
 private:
     using ListenRequestPtr = std::unique_ptr<HttpRequest>;
     using EpollPtr = std::unique_ptr<Epoll>;
+    using ThreadPoolPtr = std::shared_ptr<ThreadPool>;
 
     int port_; // 监听端口
     int listenFd_; // 监听套接字
     ListenRequestPtr listenRequest_; // 监听套接字的HttpRequest实例
     EpollPtr epoll_; // epoll实例
-    // ThreadPool threadPool_; // TODO 线程池
+    ThreadPoolPtr threadPool_; // TODO 线程池
 }; // class HttpServer
 
 } // namespace swings

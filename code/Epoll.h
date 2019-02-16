@@ -3,6 +3,7 @@
 
 #include <functional> // function
 #include <vector> // vector
+#include <memory> // shared_ptr
 
 #include <sys/epoll.h> // epoll_event
 
@@ -11,6 +12,7 @@
 namespace swings {
 
 class HttpRequest;
+class ThreadPool;
 
 class Epoll {
 public:
@@ -25,7 +27,7 @@ public:
     int mod(int fd, HttpRequest* request, int events); // 修改描述符状态
     int del(int fd, HttpRequest* request, int events); // 从epoll中删除描述符
     int wait(int timeoutMs); // 等待事件发生, 返回活跃描述符数量
-    void handleEvent(int listenFd, int eventsNum); // 调用事件处理函数
+    void handleEvent(int listenFd, std::shared_ptr<ThreadPool>& threadPool, int eventsNum); // 调用事件处理函数
     void setOnConnection(const NewConnectionCallback& cb) { onConnection_ = cb; } // 设置新连接回调函数
     void setOnCloseConnection(const CloseConnectionCallback& cb) { onCloseConnection_ = cb; } // 设置关闭连接回调函数
     void setOnRequest(const HandleRequestCallback& cb) { onRequest_ = cb; } // 设置处理请求回调函数

@@ -6,7 +6,7 @@
 #include <string>
 #include <map>
 
-#define STATIC_ROOT "./www"
+#define STATIC_ROOT "../www"
 
 namespace swings {
 class HttpRequest {
