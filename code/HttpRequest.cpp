@@ -71,7 +71,7 @@ bool HttpRequest::parseRequest()
                     // std::cout << "[HttpRequest::parseRequest] find : of request header" << std::endl;
                     __addHeader(inBuff_.peek(), colon, crlf);
                 } else {
-                    std::cout << "[HttpRequest::parseRequest]header parsing finish" << std::endl;
+                    // std::cout << "[HttpRequest::parseRequest]header parsing finish" << std::endl;
                     state_ = GotAll;
                     hasMore = false;
                 }
@@ -152,7 +152,7 @@ void HttpRequest::__addHeader(const char* start, const char* colon, const char* 
         value.resize(value.size() - 1);
 
     headers_[field] = value;
-    std::cout << "[HttpRequest::__addHeader] new header: " << field << " = " << value << std::endl;
+    // std::cout << "[HttpRequest::__addHeader] new header: " << field << " = " << value << std::endl;
 }
 
 std::string HttpRequest::getMethod() const
