@@ -10,6 +10,9 @@
 #define STATIC_ROOT "../www"
 
 namespace swings {
+
+class Timer;
+
 class HttpRequest {
 public:
     enum HttpRequestParseState { // 报文解析状态
@@ -36,6 +39,9 @@ public:
 
     void appendOutBuffer(const Buffer& buf) { outBuff_.append(buf); }
     int writableBytes() { return outBuff_.readableBytes(); }
+
+    void setTimer(Timer* timer) { timer_ = timer; }
+    Timer* getTimer() { return timer_; }
 
     bool parseRequest(); // 解析Http报文
     bool parseFinish() { return state_ == GotAll; } // 是否解析完一个报文
@@ -75,6 +81,9 @@ private:
     int fd_; // 文件描述符
     Buffer inBuff_; // 读缓冲区
     Buffer outBuff_; // 写缓冲区
+
+    // 定时器相关
+    Timer* timer_;
 
     // 报文解析相关
     HttpRequestParseState state_; // 报文解析状态

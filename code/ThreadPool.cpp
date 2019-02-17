@@ -37,9 +37,10 @@ ThreadPool::~ThreadPool()
 
 void ThreadPool::pushJob(const JobFunction& job)
 {
-    std::unique_lock<std::mutex> lock(lock_);
-    std::cout << "[ThreadPool::pushJob] new job was push to threadpool" << std::endl;
-    jobs_.push(job);
+    {
+        std::unique_lock<std::mutex> lock(lock_);
+        std::cout << "[ThreadPool::pushJob] new job was push to threadpool" << std::endl;
+        jobs_.push(job);
+    }
     cond_.notify_one();
 }
-
