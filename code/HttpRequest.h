@@ -43,6 +43,10 @@ public:
     void setTimer(Timer* timer) { timer_ = timer; }
     Timer* getTimer() { return timer_; }
 
+    void setWorking() { working_ = true; }
+    void setNoWorking() { working_ = false; }
+    bool isWorking() const { return working_; }
+
     bool parseRequest(); // 解析Http报文
     bool parseFinish() { return state_ == GotAll; } // 是否解析完一个报文
     void resetParse(); // 重置解析状态
@@ -81,6 +85,7 @@ private:
     int fd_; // 文件描述符
     Buffer inBuff_; // 读缓冲区
     Buffer outBuff_; // 写缓冲区
+    bool working_; // 若正在工作，则不能被超时事件断开连接
 
     // 定时器相关
     Timer* timer_;

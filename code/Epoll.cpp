@@ -79,16 +79,19 @@ void Epoll::handleEvent(int listenFd, std::shared_ptr<ThreadPool>& threadPool, i
             if((events_[i].events & EPOLLERR) ||
                (events_[i].events & EPOLLHUP) ||
                (!events_[i].events & EPOLLIN)) {
+                request -> setNoWorking();
                 // 出错则关闭连接
                 onCloseConnection_(request);
                 std::cout << "[Epoll::handleEvent] error happen in socket(fd=" 
                           << fd << "), close it" << std::endl;
                 continue;
             } else if(events_[i].events & EPOLLIN) {
+                request -> setWorking();
                 // onRequest_(request); // TODO 把任务交给线程池去做
                 threadPool -> pushJob(std::bind(onRequest_, request));
 
             } else if(events_[i].events & EPOLLOUT) {
+                request -> setWorking();
                 // onResponse_(request); // TODO 把任务交给线程池去做
                 threadPool -> pushJob(std::bind(onResponse_, request));
             } else {

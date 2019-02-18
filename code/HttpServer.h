@@ -5,7 +5,6 @@
 #include <mutex>
 
 #define TIMEOUTMS -1 // epoll_wait超时时间，-1表示不设超时
-#define CONNECT_TIMEOUT 500 // 非活跃连接500ms断开
 #define NUM_WORKERS 4 // 线程池大小
 
 namespace swings {

@@ -9,6 +9,7 @@ using namespace swings;
 
 HttpRequest::HttpRequest(int fd)
     : fd_(fd),
+      working_(false),
       timer_(nullptr),
       state_(ExpectRequestLine),
       method_(Invalid),

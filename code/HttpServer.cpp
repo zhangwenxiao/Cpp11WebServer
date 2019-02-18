@@ -62,21 +62,22 @@ void HttpServer::run()
             time = timerManager_ -> getNextExpireTime(); 
         }
         std::cout << "[HttpServer::run] next expire time = " << time << std::endl;
+        
         // 等待事件发生
         // int eventsNum = epoll_ -> wait(TIMEOUTMS);
         int eventsNum = epoll_ -> wait(time);
-
-        {
-            std::unique_lock<std::mutex> lock(timerLock_);
-            // 处理超时事件
-            timerManager_ -> handleExpireTimers();
-        }
 
         if(eventsNum > 0) {
             std::cout << "[HttpServer::run] epoll return, " << eventsNum << " events happen" << std::endl;
             // 分发事件处理函数
             epoll_ -> handleEvent(listenFd_, threadPool_, eventsNum);
         }   
+
+        {
+            std::unique_lock<std::mutex> lock(timerLock_);
+            // 处理超时事件
+            timerManager_ -> handleExpireTimers();
+        }
     }
 }
 
@@ -119,6 +120,10 @@ void HttpServer::__acceptConnection()
 void HttpServer::__closeConnection(HttpRequest* request)
 {
     int fd = request -> fd();
+    if(request -> isWorking()) {
+        std::cout << "[HttpServer::__closeConnection] fd = " << fd << " is working, return" << std::endl;
+        return;
+    }
     std::cout << "[HttpServer::__closeConnection] delete timer fd=" << fd << std::endl;
     // FIXME 这里上锁会死锁，HttpServer::run中handleExpireTimers前上了一次锁
     // {
@@ -126,6 +131,7 @@ void HttpServer::__closeConnection(HttpRequest* request)
         timerManager_ -> delTimer(request);
     // }
     // FIXME 使用了EPOLLONESHOT是否还需要epoll_.del
+    epoll_ -> del(fd, request, 0);
     // 关闭套接字
     ::close(fd);
     // 释放该套接字占用的HttpRequest资源
@@ -151,6 +157,7 @@ void HttpServer::__doRequest(HttpRequest* request)
     // read返回0表示客户端断开连接
     if(nRead == 0) {
         std::cout << "[HttpServer::__doRequest] client(fd=" << fd << ") is close" << std::endl;
+        request -> setNoWorking();
         __closeConnection(request);
         return; 
     }
@@ -158,6 +165,7 @@ void HttpServer::__doRequest(HttpRequest* request)
     // 非EAGAIN错误，断开连接
     if(nRead < 0 && (readErrno != EAGAIN)) {
         std::cout << "[HttpServer::__doRequest] error in socket(fd=" << fd << "), close it" << std::endl;
+        request -> setNoWorking();
         __closeConnection(request);
         return; 
     }
@@ -172,6 +180,7 @@ void HttpServer::__doRequest(HttpRequest* request)
             std::unique_lock<std::mutex> lock(timerLock_);
             timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
         }
+        request -> setNoWorking();
         return;
     }
 
@@ -186,7 +195,7 @@ void HttpServer::__doRequest(HttpRequest* request)
         // XXX 立刻关闭连接了，所以就算没写完也只能写一次？
         int writeErrno;
         request -> write(&writeErrno);
-
+        request -> setNoWorking();
         __closeConnection(request); 
         return; 
     }
@@ -218,6 +227,7 @@ void HttpServer::__doResponse(HttpRequest* request)
             std::unique_lock<std::mutex> lock(timerLock_);
             timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
         }
+        request -> setNoWorking();
         return;
     }
 
@@ -227,12 +237,14 @@ void HttpServer::__doResponse(HttpRequest* request)
     if(ret < 0 && writeErrno == EAGAIN) {
         std::cout << "[HttpServer::__doResponse] EAGAIN happen in socket(fd=" << fd << ")" << std::endl;
         epoll_ -> mod(fd, request, (EPOLLIN | EPOLLOUT | EPOLLONESHOT));
+        request -> setNoWorking();
         return;
     }
 
     // 非EAGAIN错误，断开连接
     if(ret < 0 && (writeErrno != EAGAIN)) {
         std::cout << "[HttpServer::__doResponse] error in socket(fd=" << fd << "), close it" << std::endl;
+        request -> setNoWorking();
         __closeConnection(request);
         return; 
     }
@@ -249,9 +261,11 @@ void HttpServer::__doResponse(HttpRequest* request)
                 std::unique_lock<std::mutex> lock(timerLock_);
                 timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
             }
+            request -> setNoWorking();
         }
         else {
             std::cout << "[HttpServer::__doResponse] don't keep alive, close it" << std::endl; 
+            request -> setNoWorking();
             __closeConnection(request);
         }
         return;
@@ -259,6 +273,7 @@ void HttpServer::__doResponse(HttpRequest* request)
 
     std::cout << "[HttpServer::__doResponse] write doesn't finish" << std::endl;
     epoll_ -> mod(fd, request, (EPOLLIN | EPOLLOUT | EPOLLONESHOT));
+    request -> setNoWorking();
 
     return;
 }
