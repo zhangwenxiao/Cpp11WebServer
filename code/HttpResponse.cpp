@@ -92,7 +92,7 @@ void HttpResponse::doStaticRequest(Buffer& output, long fileSize)
     // 报文头
     if(keepAlive_) {
         output.append("Connection: Keep-Alive\r\n");
-        // TODO 添加头部Keep-Alive: timeout=?
+        output.append("Keep-Alive: timeout=" + std::to_string(CONNECT_TIMEOUT) + "\r\n");
     }
     output.append("Content-type: " + __getFileType() + "\r\n");
     output.append("Content-length: " + std::to_string(fileSize) + "\r\n");

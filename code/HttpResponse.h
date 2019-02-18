@@ -4,6 +4,8 @@
 #include <map>
 #include <string>
 
+#define CONNECT_TIMEOUT 500 // 非活跃连接500ms断开
+
 namespace swings {
 
 class Buffer;

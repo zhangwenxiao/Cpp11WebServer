@@ -15,8 +15,8 @@ void TimerManager::addTimer(HttpRequest* request,
     Timer* timer = new Timer(now_ + MS(timeout), cb);
     timerQueue_.push(timer);
 
-    std::cout << "[TimerManager::addTimer] now_ = " << Clock::to_time_t(now_)
-              << " , new timer = " << Clock::to_time_t(now_ + MS(timeout)) << std::endl;
+    // std::cout << "[TimerManager::addTimer] now_ = " << Clock::to_time_t(now_)
+    //           << " , new timer = " << Clock::to_time_t(now_ + MS(timeout)) << std::endl;
 
     // 对同一个request连续调用两次addTimer，需要把前一个定时器删除
     if(request -> getTimer() != nullptr)
@@ -33,8 +33,8 @@ void TimerManager::delTimer(HttpRequest* request)
     if(timer == nullptr)
         return;
 
-    std::cout << "[TimerManager::delTimer] a timer = " << Clock::to_time_t(timer -> getExpireTime())
-              << " is deleted" << std::endl;
+    // std::cout << "[TimerManager::delTimer] a timer = " << Clock::to_time_t(timer -> getExpireTime())
+    //           << " is deleted" << std::endl;
     // 如果这里写成delete timeNode，会使priority_queue里的对应指针变成垂悬指针
     // 正确的方法是惰性删除
     timer -> del();
@@ -51,17 +51,18 @@ void TimerManager::handleExpireTimers()
         assert(timer != nullptr);
         // 定时器被删除
         if(timer -> isDeleted()) {
-            std::cout << "[TimerManager::handleExpireTimers] timer = " << Clock::to_time_t(timer -> getExpireTime())
-                      << " is deleted" << std::endl;
+            // std::cout << "[TimerManager::handleExpireTimers] timer = " << Clock::to_time_t(timer -> getExpireTime())
+            //           << " is deleted" << std::endl;
             timerQueue_.pop();
             delete timer;
             continue;
         }
         // 优先队列头部的定时器也没有超时，return
-        if(timer -> getExpireTime() > now_) {
-            std::cout << "[TimerManager::handleExpireTimers] no timeout : " 
-                      << Clock::to_time_t(timer -> getExpireTime()) << " - " 
-                      << Clock::to_time_t(now_) << std::endl;
+        if(std::chrono::duration_cast<MS>(timer -> getExpireTime() - now_).count() > 0) {
+            // std::cout << "[TimerManager::handleExpireTimers] no timeout : " 
+            //           << Clock::to_time_t(timer -> getExpireTime()) << " - " 
+            //           << Clock::to_time_t(now_) << std::endl;
+            std::cout << "[TimerManager::handleExpireTimers] there is no timeout timer" << std::endl;
             return;
         }
         std::cout << "[TimerManager::handleExpireTimers] timeout" << std::endl;
@@ -79,8 +80,8 @@ int TimerManager::getNextExpireTime()
     while(!timerQueue_.empty()) {
         Timer* timer = timerQueue_.top();
         if(timer -> isDeleted()) {
-            std::cout << "[TimerManager::getNextExpireTime] timer = " << Clock::to_time_t(timer -> getExpireTime())
-                      << " is deleted" << std::endl;
+            // std::cout << "[TimerManager::getNextExpireTime] timer = " << Clock::to_time_t(timer -> getExpireTime())
+            //           << " is deleted" << std::endl;
             timerQueue_.pop();
             delete timer;
             continue;

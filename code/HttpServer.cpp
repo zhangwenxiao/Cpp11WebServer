@@ -4,6 +4,7 @@
 #include "Utils.h"
 #include "Epoll.h"
 #include "ThreadPool.h"
+#include "Timer.h"
 
 #include <iostream>
 #include <functional> // bind
@@ -21,7 +22,8 @@ HttpServer::HttpServer(int port)
       listenFd_(utils::createListenFd(port_)),
       listenRequest_(new HttpRequest(listenFd_)),
       epoll_(new Epoll()),
-      threadPool_(new ThreadPool(NUM_WORKERS))
+      threadPool_(new ThreadPool(NUM_WORKERS)),
+      timerManager_(new TimerManager())
 {
     assert(listenFd_ >= 0);
     std::cout << "[HttpServer::HttpServer] create listen socket, fd = " 
@@ -53,9 +55,22 @@ void HttpServer::run()
     std::cout << "[HttpServer::run] server is running ..." << std::endl;
     // 服务器循环
     // XXX 服务器应该能够停止
-    while(1) { 
+    while(1) {
+        int time;
+        {
+            std::unique_lock<std::mutex> lock(timerLock_);
+            time = timerManager_ -> getNextExpireTime(); 
+        }
+        std::cout << "[HttpServer::run] next expire time = " << time << std::endl;
         // 等待事件发生
-        int eventsNum = epoll_ -> wait(TIMEOUTMS);
+        // int eventsNum = epoll_ -> wait(TIMEOUTMS);
+        int eventsNum = epoll_ -> wait(time);
+
+        {
+            std::unique_lock<std::mutex> lock(timerLock_);
+            // 处理超时事件
+            timerManager_ -> handleExpireTimers();
+        }
 
         if(eventsNum > 0) {
             std::cout << "[HttpServer::run] epoll return, " << eventsNum << " events happen" << std::endl;
@@ -94,12 +109,23 @@ void HttpServer::__acceptConnection()
     HttpRequest* request = new HttpRequest(acceptFd);
     // 注册连接套接字到epoll（可读，边缘触发，保证任一时刻只被一个线程处理）
     epoll_ -> add(acceptFd, request, (EPOLLIN /*| EPOLLET*/ | EPOLLONESHOT));
+
+    {
+        std::unique_lock<std::mutex> lock(timerLock_);
+        timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
+    }
 }
 
 void HttpServer::__closeConnection(HttpRequest* request)
 {
-    // FIXME 使用了EPOLLONESHOT是否还需要epoll_.del
     int fd = request -> fd();
+    std::cout << "[HttpServer::__closeConnection] delete timer fd=" << fd << std::endl;
+    // FIXME 这里上锁会死锁，HttpServer::run中handleExpireTimers前上了一次锁
+    // {
+    //     std::unique_lock<std::mutex> lock(timerLock_);
+        timerManager_ -> delTimer(request);
+    // }
+    // FIXME 使用了EPOLLONESHOT是否还需要epoll_.del
     // 关闭套接字
     ::close(fd);
     // 释放该套接字占用的HttpRequest资源
@@ -113,6 +139,11 @@ void HttpServer::__doRequest(HttpRequest* request)
 {
     int fd = request -> fd();
     std::cout << "[HttpServer::__doRequest] something happen in socket(fd=" << fd << ")" << std::endl;
+    std::cout << "[HttpServer::__doRequest] delete timer of socket(fd=" << fd << ")" << std::endl;
+    {
+        std::unique_lock<std::mutex> lock(timerLock_);
+        timerManager_ -> delTimer(request);
+    }
 
     int readErrno;
     int nRead = request -> read(&readErrno);
@@ -136,6 +167,11 @@ void HttpServer::__doRequest(HttpRequest* request)
         std::cout << "[HttpServer::__doRequest] EAGAIN happen in socket(fd=" << fd << ")" << std::endl;
         epoll_ -> mod(fd, request, (EPOLLIN | EPOLLONESHOT));
         std::cout << "[HttpServer::__doRequest] modify socket(fd=" << fd << ") to epoll(EPOLLIN)" << std::endl;
+        std::cout << "[HttpServer::__doRequest] add timer to fd = " << fd << std::endl;
+        {
+            std::unique_lock<std::mutex> lock(timerLock_);
+            timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
+        }
         return;
     }
 
@@ -177,6 +213,11 @@ void HttpServer::__doResponse(HttpRequest* request)
     if(toWrite == 0) {
         std::cout << "[HttpServer::__doResponse] nothing to write in socket(fd=" << fd << ")" << std::endl;
         epoll_ -> mod(fd, request, (EPOLLIN | EPOLLONESHOT));
+        std::cout << "[HttpServer::__doResponse] add timer to fd = " << fd << std::endl;
+        {
+            std::unique_lock<std::mutex> lock(timerLock_);
+            timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
+        }
         return;
     }
 
@@ -203,6 +244,11 @@ void HttpServer::__doResponse(HttpRequest* request)
             epoll_ -> mod(fd, request, (EPOLLIN | EPOLLONESHOT));
             std::cout << "[HttpServer::__doResponse] keep alive, modify socket(fd=" 
                       << fd << ") to epoll(EPOLLIN)" << std::endl;
+            std::cout << "[HttpServer::__doResponse] add timer to fd = " << fd << std::endl;
+            {
+                std::unique_lock<std::mutex> lock(timerLock_);
+                timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
+            }
         }
         else {
             std::cout << "[HttpServer::__doResponse] don't keep alive, close it" << std::endl; 
