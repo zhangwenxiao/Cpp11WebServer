@@ -47,13 +47,16 @@ void HttpServer::run()
 
     // 事件循环
     while(1) {
+        int timeMS = timerManager_ -> getNextExpireTime();
         // 等待事件发生
-        int eventsNum = epoll_ -> wait(TIMEOUTMS);
+        // int eventsNum = epoll_ -> wait(TIMEOUTMS);
+        int eventsNum = epoll_ -> wait(timeMS);
 
         if(eventsNum > 0) {
             // 分发事件处理函数
             epoll_ -> handleEvent(listenFd_, threadPool_, eventsNum);
-        }   
+        }
+        timerManager_ -> handleExpireTimers();   
     }
 }
 
@@ -70,6 +73,7 @@ void HttpServer::__acceptConnection()
         }
         // 为新的连接套接字分配HttpRequest资源
         HttpRequest* request = new HttpRequest(acceptFd);
+        timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
         // 注册连接套接字到epoll（可读，边缘触发，保证任一时刻只被一个线程处理）
         epoll_ -> add(acceptFd, request, (EPOLLIN | EPOLLONESHOT));
     }
@@ -81,6 +85,8 @@ void HttpServer::__closeConnection(HttpRequest* request)
     if(request -> isWorking()) {
         return;
     }
+    printf("[HttpServer::__closeConnection] connect fd = %d is closed\n", fd);
+    timerManager_ -> delTimer(request);
     epoll_ -> del(fd, request, 0);
     // 释放该套接字占用的HttpRequest资源，在析构函数中close(fd)
     delete request;
@@ -90,6 +96,7 @@ void HttpServer::__closeConnection(HttpRequest* request)
 // LT模式
 void HttpServer::__doRequest(HttpRequest* request)
 {
+    timerManager_ -> delTimer(request);
     assert(request != nullptr);
     int fd = request -> fd();
 
@@ -114,6 +121,7 @@ void HttpServer::__doRequest(HttpRequest* request)
     if(nRead < 0 && readErrno == EAGAIN) {
         epoll_ -> mod(fd, request, (EPOLLIN | EPOLLONESHOT));
         request -> setNoWorking();
+        timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
         return;
     }
 
@@ -142,6 +150,7 @@ void HttpServer::__doRequest(HttpRequest* request)
 // LT模式
 void HttpServer::__doResponse(HttpRequest* request)
 {
+    timerManager_ -> delTimer(request);
     assert(request != nullptr);
     int fd = request -> fd();
 
@@ -150,6 +159,7 @@ void HttpServer::__doResponse(HttpRequest* request)
     if(toWrite == 0) {
         epoll_ -> mod(fd, request, (EPOLLIN | EPOLLONESHOT));
         request -> setNoWorking();
+        timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
         return;
     }
 
@@ -158,7 +168,6 @@ void HttpServer::__doResponse(HttpRequest* request)
 
     if(ret < 0 && writeErrno == EAGAIN) {
         epoll_ -> mod(fd, request, (EPOLLIN | EPOLLOUT | EPOLLONESHOT));
-        // request -> setNoWorking(); // XXX 这里需要setNoWorking吗
         return;
     }
 
@@ -174,6 +183,7 @@ void HttpServer::__doResponse(HttpRequest* request)
             request -> resetParse();
             epoll_ -> mod(fd, request, (EPOLLIN | EPOLLONESHOT));
             request -> setNoWorking();
+            timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
         } else {
             request -> setNoWorking();
             __closeConnection(request);
@@ -183,6 +193,6 @@ void HttpServer::__doResponse(HttpRequest* request)
 
     epoll_ -> mod(fd, request, (EPOLLIN | EPOLLOUT | EPOLLONESHOT));
     request -> setNoWorking();
-
+    timerManager_ -> addTimer(request, CONNECT_TIMEOUT, std::bind(&HttpServer::__closeConnection, this, request));
     return;
 }

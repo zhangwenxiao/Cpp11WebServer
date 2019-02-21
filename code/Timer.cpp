@@ -16,9 +16,6 @@ void TimerManager::addTimer(HttpRequest* request,
     Timer* timer = new Timer(now_ + MS(timeout), cb);
     timerQueue_.push(timer);
 
-    // std::cout << "[TimerManager::addTimer] now_ = " << Clock::to_time_t(now_)
-    //           << " , new timer = " << Clock::to_time_t(now_ + MS(timeout)) << std::endl;
-
     // 对同一个request连续调用两次addTimer，需要把前一个定时器删除
     if(request -> getTimer() != nullptr)
         delTimer(request);
@@ -26,9 +23,11 @@ void TimerManager::addTimer(HttpRequest* request,
     request -> setTimer(timer);
 }
 
+// 这个函数不必上锁，没有线程安全问题
+// 若上锁，反而会因为连续两次上锁造成死锁：handleExpireTimers -> runCallBack -> __closeConnection -> delTimer
 void TimerManager::delTimer(HttpRequest* request)
 {
-    std::unique_lock<std::mutex> lock(lock_);
+    // std::unique_lock<std::mutex> lock(lock_);
     assert(request != nullptr);
 
     Timer* timer = request -> getTimer();
@@ -59,9 +58,6 @@ void TimerManager::handleExpireTimers()
         }
         // 优先队列头部的定时器也没有超时，return
         if(std::chrono::duration_cast<MS>(timer -> getExpireTime() - now_).count() > 0) {
-            // std::cout << "[TimerManager::handleExpireTimers] no timeout : " 
-            //           << Clock::to_time_t(timer -> getExpireTime()) << " - " 
-            //           << Clock::to_time_t(now_) << std::endl;
             std::cout << "[TimerManager::handleExpireTimers] there is no timeout timer" << std::endl;
             return;
         }
@@ -81,8 +77,6 @@ int TimerManager::getNextExpireTime()
     while(!timerQueue_.empty()) {
         Timer* timer = timerQueue_.top();
         if(timer -> isDeleted()) {
-            // std::cout << "[TimerManager::getNextExpireTime] timer = " << Clock::to_time_t(timer -> getExpireTime())
-            //           << " is deleted" << std::endl;
             timerQueue_.pop();
             delete timer;
             continue;
