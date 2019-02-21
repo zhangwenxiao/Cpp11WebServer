@@ -20,9 +20,7 @@ ssize_t Buffer::readFd(int fd, int* savedErrno)
     vec[1].iov_len = sizeof(extrabuf);
     const ssize_t n = ::readv(fd, vec, 2);
     if(n < 0) {
-        // 用perror会导致和cout打印出来的log乱序
-        // std::perror("[Buffer::readFd] readv");
-        std::cout << "[Buffer:readFd] readv " << strerror(errno) << std::endl;
+        printf("[Buffer:readFd]fd = %d readv : %s\n", fd, strerror(errno));
         *savedErrno = errno;
     } 
     else if(static_cast<size_t>(n) <= writable)
@@ -44,9 +42,7 @@ ssize_t Buffer::writeFd(int fd, int* savedErrno)
         if(n < 0 && n == EINTR)
             return 0;
         else {
-            // 用perror会导致和cout打印出来的log乱序
-            // std::perror("[Buffer::writeFd] write");
-            std::cout << "[Buffer:writeFd] write " << strerror(errno) << std::endl;
+            printf("[Buffer:writeFd]fd = %d write : %s\n", fd, strerror(errno));
             *savedErrno = errno;
             return -1;
         }

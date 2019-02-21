@@ -16,26 +16,26 @@ HttpRequest::HttpRequest(int fd)
       version_(Unknown)
 {
     assert(fd_ >= 0);
-    std::cout << "[HttpRequest::HttpRequest] fd = " << fd_ << std::endl;
+    // printf("[HttpRequest::HttpRequest] fd = %d\n", fd_);
 }
 
 HttpRequest::~HttpRequest()
 {
+    // printf("[HttpRequest::~HttpRequest] fd = %d\n", fd_);
     close(fd_);
-    std::cout << "[HttpRequest::~HttpRequest] close socket(fd=" << fd_ << ")" << std::endl;
 }
 
 int HttpRequest::read(int* savedErrno)
 {
     int ret = inBuff_.readFd(fd_, savedErrno);
-    std::cout << "[HttpRequest::read] read from socket(fd=" << fd_ << "), return " << ret << std::endl;
+    // printf("[HttpRequest::read] fd = %d, return %d\n", fd_, ret);
     return ret;
 }
 
 int HttpRequest::write(int* savedErrno)
 {
     int ret = outBuff_.writeFd(fd_, savedErrno);
-    std::cout << "[HttpRequest::write] write to socket(fd=" << fd_ << "), return " << ret << std::endl;
+    // printf("[HttpRequest::write] fd = %d, return %d\n", fd_, ret);
     return ret;
 }
 
@@ -49,37 +49,29 @@ bool HttpRequest::parseRequest()
             // 处理请求行
             const char* crlf = inBuff_.findCRLF();
             if(crlf) {
-                // std::cout << "[HttpRequest::parseRequest] find CRLF of request line" << std::endl;
                 ok = __parseRequestLine(inBuff_.peek(), crlf);
                 if(ok) {
-                    // std::cout << "[HttpRequest::parseRequest] parsing request line finish" << std::endl;
                     inBuff_.retrieveUntil(crlf + 2);
                     state_ = ExpectHeaders;
                 } else {
-                    // std::cout << "[HttpRequest::parseRequest] parsing request line fail" << std::endl;
                     hasMore = false;
                 }
             } else {
-                // std::cout << "[HttpRequest::parseRequest] can't find CRLF of request line" << std::endl;
                 hasMore = false;
             }
         } else if(state_ == ExpectHeaders) {
             // 处理报文头
             const char* crlf = inBuff_.findCRLF();
             if(crlf) {
-                // std::cout << "[HttpRequest::parseRequest] find CRLF of request header" << std::endl;
                 const char* colon = std::find(inBuff_.peek(), crlf, ':');
                 if(colon != crlf) {
-                    // std::cout << "[HttpRequest::parseRequest] find : of request header" << std::endl;
                     __addHeader(inBuff_.peek(), colon, crlf);
                 } else {
-                    // std::cout << "[HttpRequest::parseRequest]header parsing finish" << std::endl;
                     state_ = GotAll;
                     hasMore = false;
                 }
                 inBuff_.retrieveUntil(crlf + 2);
             } else {
-                // std::cout << "[HttpRequest::parseRequest] can't find CRLF of request header" << std::endl;
                 hasMore = false;
             } 
         } else if(state_ == ExpectBody) {
@@ -92,7 +84,6 @@ bool HttpRequest::parseRequest()
 
 bool HttpRequest::__parseRequestLine(const char* begin, const char* end)
 {
-    // std::cout << "[HttpRequest::__parseRequestLine] begin to parse request line" << std::endl;
     bool succeed = false;
     const char* start = begin;
     const char* space = std::find(start, end, ' ');
@@ -126,7 +117,6 @@ bool HttpRequest::__parseRequestLine(const char* begin, const char* end)
 bool HttpRequest::__setMethod(const char* start, const char* end)
 {
     std::string m(start, end);
-    std::cout << "[HttpRequest::__setMethod] method is " << m << std::endl;
     if(m == "GET")
         method_ = Get;
     else if(m == "POST")
@@ -154,7 +144,6 @@ void HttpRequest::__addHeader(const char* start, const char* colon, const char* 
         value.resize(value.size() - 1);
 
     headers_[field] = value;
-    // std::cout << "[HttpRequest::__addHeader] new header: " << field << " = " << value << std::endl;
 }
 
 std::string HttpRequest::getMethod() const

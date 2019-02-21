@@ -69,7 +69,6 @@ private:
         if(subPath == "/")
             subPath = "/index.html";
         path_ = STATIC_ROOT + subPath;
-        std::cout << "[HttpRequest::__setPath] url is " << path_ << std::endl;
     }
     // 设置URL参数
     void __setQuery(const char* begin, const char* end)

@@ -5,7 +5,7 @@ sources := ${wildcard *.cpp}
 headfile := ${wildcard *.h}
 objects := ${sources:.cpp=.o}
 
-CC := g++ -std=c++11
+CC := g++ -std=c++11 -g
 RM := rm -rf
 LIB := -lpthread
 
