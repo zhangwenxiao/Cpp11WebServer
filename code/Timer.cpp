@@ -58,10 +58,10 @@ void TimerManager::handleExpireTimers()
         }
         // 优先队列头部的定时器也没有超时，return
         if(std::chrono::duration_cast<MS>(timer -> getExpireTime() - now_).count() > 0) {
-            std::cout << "[TimerManager::handleExpireTimers] there is no timeout timer" << std::endl;
+            // std::cout << "[TimerManager::handleExpireTimers] there is no timeout timer" << std::endl;
             return;
         }
-        std::cout << "[TimerManager::handleExpireTimers] timeout" << std::endl;
+        // std::cout << "[TimerManager::handleExpireTimers] timeout" << std::endl;
         // 超时
         timer -> runCallBack();
         timerQueue_.pop();

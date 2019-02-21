@@ -18,7 +18,7 @@ class TimerManager;
 
 class HttpServer {
 public:
-    HttpServer(int port);
+    HttpServer(int port, int numThread);
     ~HttpServer();
     void run(); // 启动HTTP服务器
     
@@ -40,7 +40,6 @@ private:
     EpollPtr epoll_; // epoll实例
     ThreadPoolPtr threadPool_; // 线程池
     TimerManagerPtr timerManager_; // 定时器管理器
-    std::mutex timerLock_; // 保护定时器管理器
 }; // class HttpServer
 
 } // namespace swings

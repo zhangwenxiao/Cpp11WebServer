@@ -17,12 +17,12 @@
 
 using namespace swings;
 
-HttpServer::HttpServer(int port) 
+HttpServer::HttpServer(int port, int numThread) 
     : port_(port),
       listenFd_(utils::createListenFd(port_)),
       listenRequest_(new HttpRequest(listenFd_)),
       epoll_(new Epoll()),
-      threadPool_(new ThreadPool(NUM_WORKERS)),
+      threadPool_(new ThreadPool(numThread)),
       timerManager_(new TimerManager())
 {
     assert(listenFd_ >= 0);
@@ -85,7 +85,7 @@ void HttpServer::__closeConnection(HttpRequest* request)
     if(request -> isWorking()) {
         return;
     }
-    printf("[HttpServer::__closeConnection] connect fd = %d is closed\n", fd);
+    // printf("[HttpServer::__closeConnection] connect fd = %d is closed\n", fd);
     timerManager_ -> delTimer(request);
     epoll_ -> del(fd, request, 0);
     // 释放该套接字占用的HttpRequest资源，在析构函数中close(fd)

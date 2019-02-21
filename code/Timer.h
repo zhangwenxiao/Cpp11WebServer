@@ -63,7 +63,7 @@ private:
     TimerQueue timerQueue_;
     Timestamp now_;
     std::mutex lock_;
-}; // class Timer
+}; // class TimerManager
 
 } // namespace swings
 

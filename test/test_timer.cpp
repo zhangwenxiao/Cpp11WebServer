@@ -9,7 +9,7 @@
 using namespace swings;
 
 void func(HttpRequest* req) {
-    std::cout << "timeout id=" << req -> fd() << std::endl;
+    // std::cout << "timeout id=" << req -> fd() << std::endl;
     return;
 }
 
@@ -28,7 +28,7 @@ int main()
 
     while(1) {
         int time = timerManager.getNextExpireTime();
-        std::cout << "wait " << time << " ms ..." << std::endl;
+        // std::cout << "wait " << time << " ms ..." << std::endl;
         if(time == -1)
             break;
         epoll_event events[1];
