@@ -16,26 +16,22 @@ HttpRequest::HttpRequest(int fd)
       version_(Unknown)
 {
     assert(fd_ >= 0);
-    // printf("[HttpRequest::HttpRequest] fd = %d\n", fd_);
 }
 
 HttpRequest::~HttpRequest()
 {
-    // printf("[HttpRequest::~HttpRequest] fd = %d\n", fd_);
     close(fd_);
 }
 
 int HttpRequest::read(int* savedErrno)
 {
     int ret = inBuff_.readFd(fd_, savedErrno);
-    // printf("[HttpRequest::read] fd = %d, return %d\n", fd_, ret);
     return ret;
 }
 
 int HttpRequest::write(int* savedErrno)
 {
     int ret = outBuff_.writeFd(fd_, savedErrno);
-    // printf("[HttpRequest::write] fd = %d, return %d\n", fd_, ret);
     return ret;
 }
 

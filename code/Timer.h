@@ -7,6 +7,7 @@
 #include <vector>
 #include <iostream>
 #include <cassert>
+#include <mutex>
 
 namespace swings {
 
@@ -61,6 +62,7 @@ private:
 
     TimerQueue timerQueue_;
     Timestamp now_;
+    std::mutex lock_;
 }; // class Timer
 
 } // namespace swings

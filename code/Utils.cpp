@@ -13,7 +13,6 @@ using namespace swings;
 
 int utils::createListenFd(int port)
 {
-    // printf("[Utils::createListenFd]\n");
     // 处理非法端口
     port = ((port <= 1024) || (port >= 65535)) ? 6666 : port;
 
@@ -50,7 +49,6 @@ int utils::createListenFd(int port)
 
     // 关闭无效监听描述符
     if(listenFd == -1) {
-        // printf("[Utils::createListenFd] invalid listen socket, close it\n");
         ::close(listenFd);
         return -1;
     }

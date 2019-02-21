@@ -81,18 +81,15 @@ void HttpResponse::doStaticRequest(Buffer& output, long fileSize)
         return;
     }
 
-    // 调试core down错误   
-    // std::string fakeFile = "this is a fake file";
-    // fileSize = fakeFile.size();
-
     // 响应行
     output.append("HTTP/1.1 " + std::to_string(statusCode_) + " " + itr -> second + "\r\n");
     // 报文头
-    // if(keepAlive_) {
-    //     output.append("Connection: Keep-Alive\r\n");
-    //     output.append("Keep-Alive: timeout=" + std::to_string(CONNECT_TIMEOUT) + "\r\n");
-    // }
-    output.append("Connection: close\r\n");
+    if(keepAlive_) {
+        output.append("Connection: Keep-Alive\r\n");
+        output.append("Keep-Alive: timeout=" + std::to_string(CONNECT_TIMEOUT) + "\r\n");
+    } else {
+        output.append("Connection: close\r\n");
+    }
     output.append("Content-type: " + __getFileType() + "\r\n");
     output.append("Content-length: " + std::to_string(fileSize) + "\r\n");
     // TODO 添加头部Last-Modified: ?
@@ -111,9 +108,6 @@ void HttpResponse::doStaticRequest(Buffer& output, long fileSize)
         doErrorResponse(output, "Swings can't find the file");
         return;
     }
-
-    // srcAddr地址非法导致coredown
-    // output.append(fakeFile.data(), fakeFile.size());
     char* srcAddr = static_cast<char*>(mmapRet);
     output.append(srcAddr, fileSize);
 

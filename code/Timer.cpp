@@ -9,6 +9,7 @@ void TimerManager::addTimer(HttpRequest* request,
                      const int& timeout, 
                      const TimeoutCallBack& cb)
 {
+    std::unique_lock<std::mutex> lock(lock_);
     assert(request != nullptr);
 
     updateTime();
@@ -27,24 +28,23 @@ void TimerManager::addTimer(HttpRequest* request,
 
 void TimerManager::delTimer(HttpRequest* request)
 {
+    std::unique_lock<std::mutex> lock(lock_);
     assert(request != nullptr);
 
     Timer* timer = request -> getTimer();
     if(timer == nullptr)
         return;
 
-    // std::cout << "[TimerManager::delTimer] a timer = " << Clock::to_time_t(timer -> getExpireTime())
-    //           << " is deleted" << std::endl;
     // 如果这里写成delete timeNode，会使priority_queue里的对应指针变成垂悬指针
     // 正确的方法是惰性删除
     timer -> del();
-
     // 防止request -> getTimer()访问到垂悬指针
     request -> setTimer(nullptr);
 }
 
 void TimerManager::handleExpireTimers()
 {
+    std::unique_lock<std::mutex> lock(lock_);
     updateTime();
     while(!timerQueue_.empty()) {
         Timer* timer = timerQueue_.top();
@@ -75,6 +75,7 @@ void TimerManager::handleExpireTimers()
 
 int TimerManager::getNextExpireTime()
 {
+    std::unique_lock<std::mutex> lock(lock_);
     updateTime();
     int res = -1;
     while(!timerQueue_.empty()) {
